@@ -14,25 +14,27 @@
  * limitations under the License.
  */
 
-import type * as channels from '@protocol/channels';
-import type { CallLog, CallLogStatus, ElementInfo, EventData, Mode, OverlayState, Source, UIState } from '@recorder/recorderTypes';
 import * as fs from 'fs';
-import type { Point } from '../common/types';
+
 import * as consoleApiSource from '../generated/consoleApiSource';
 import { isUnderTest } from '../utils';
-import { locatorOrSelectorAsSelector } from '../utils/isomorphic/locatorParser';
 import { BrowserContext } from './browserContext';
-import { type Language } from './codegen/types';
 import { Debugger } from './debugger';
-import type { CallMetadata, InstrumentationListener, SdkObject } from './instrumentation';
 import { ContextRecorder, generateFrameSelector } from './recorder/contextRecorder';
-import type { IRecorderAppFactory, IRecorderApp, IRecorder } from './recorder/recorderFrontend';
-import { metadataToCallLog } from './recorder/recorderUtils';
-import type * as actions from '@recorder/actions';
-import { buildFullSelector } from '../utils/isomorphic/recorderUtils';
+import { buildFullSelector, metadataToCallLog } from './recorder/recorderUtils';
+import { locatorOrSelectorAsSelector } from '../utils/isomorphic/locatorParser';
 import { stringifySelector } from '../utils/isomorphic/selectorParser';
+
+import type { Language } from './codegen/types';
 import type { Frame } from './frames';
+import type { CallMetadata, InstrumentationListener, SdkObject } from './instrumentation';
+import type { Page } from './page';
+import type { IRecorder, IRecorderApp, IRecorderAppFactory } from './recorder/recorderFrontend';
+import type { Point } from '../utils/isomorphic/types';
 import type { AriaTemplateNode } from '@isomorphic/ariaSnapshot';
+import type * as channels from '@protocol/channels';
+import type * as actions from '@recorder/actions';
+import type { CallLog, CallLogStatus, ElementInfo, EventData, Mode, OverlayState, Source, UIState } from '@recorder/recorderTypes';
 
 const recorderSymbol = Symbol('recorderSymbol');
 
@@ -54,33 +56,33 @@ export class Recorder implements InstrumentationListener, IRecorder {
   static async showInspector(context: BrowserContext, params: channels.BrowserContextEnableRecorderParams, recorderAppFactory: IRecorderAppFactory) {
     if (isUnderTest())
       params.language = process.env.TEST_INSPECTOR_LANGUAGE;
-    return await Recorder.show('actions', context, recorderAppFactory, params);
+    return await Recorder.show(context, recorderAppFactory, params);
   }
 
   static showInspectorNoReply(context: BrowserContext, recorderAppFactory: IRecorderAppFactory) {
     Recorder.showInspector(context, {}, recorderAppFactory).catch(() => {});
   }
 
-  static show(codegenMode: 'actions' | 'trace-events', context: BrowserContext, recorderAppFactory: IRecorderAppFactory, params: channels.BrowserContextEnableRecorderParams): Promise<Recorder> {
+  static show(context: BrowserContext, recorderAppFactory: IRecorderAppFactory, params: channels.BrowserContextEnableRecorderParams): Promise<Recorder> {
     let recorderPromise = (context as any)[recorderSymbol] as Promise<Recorder>;
     if (!recorderPromise) {
-      recorderPromise = Recorder._create(codegenMode, context, recorderAppFactory, params);
+      recorderPromise = Recorder._create(context, recorderAppFactory, params);
       (context as any)[recorderSymbol] = recorderPromise;
     }
     return recorderPromise;
   }
 
-  private static async _create(codegenMode: 'actions' | 'trace-events', context: BrowserContext, recorderAppFactory: IRecorderAppFactory, params: channels.BrowserContextEnableRecorderParams = {}): Promise<Recorder> {
-    const recorder = new Recorder(codegenMode, context, params);
+  private static async _create(context: BrowserContext, recorderAppFactory: IRecorderAppFactory, params: channels.BrowserContextEnableRecorderParams = {}): Promise<Recorder> {
+    const recorder = new Recorder(context, params);
     const recorderApp = await recorderAppFactory(recorder);
     await recorder._install(recorderApp);
     return recorder;
   }
 
-  constructor(codegenMode: 'actions' | 'trace-events', context: BrowserContext, params: channels.BrowserContextEnableRecorderParams) {
+  constructor(context: BrowserContext, params: channels.BrowserContextEnableRecorderParams) {
     this._mode = params.mode || 'none';
     this.handleSIGINT = params.handleSIGINT;
-    this._contextRecorder = new ContextRecorder(codegenMode, context, params, {});
+    this._contextRecorder = new ContextRecorder(context, params, {});
     this._context = context;
     this._omitCallTracking = !!params.omitCallTracking;
     this._debugger = context.debugger();
@@ -149,6 +151,7 @@ export class Recorder implements InstrumentationListener, IRecorder {
       this._context.instrumentation.removeListener(this);
       this._recorderApp?.close().catch(() => {});
     });
+
     this._contextRecorder.on(ContextRecorder.Events.Change, (data: { sources: Source[], actions: actions.ActionInContext[] }) => {
       this._recorderSources = data.sources;
       recorderApp.setActions(data.actions, data.sources);
@@ -347,7 +350,8 @@ export class Recorder implements InstrumentationListener, IRecorder {
   }
 
   private _pushAllSources() {
-    this._recorderApp?.setSources([...this._recorderSources, ...this._userSources.values()]);
+    const primaryPage: Page | undefined = this._context.pages()[0];
+    this._recorderApp?.setSources([...this._recorderSources, ...this._userSources.values()], primaryPage?.mainFrame().url());
   }
 
   async onBeforeInputAction(sdkObject: SdkObject, metadata: CallMetadata) {

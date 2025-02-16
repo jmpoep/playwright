@@ -22,6 +22,7 @@ import type { Source } from '../../../packages/recorder/src/recorderTypes';
 import type { CommonFixtures, TestChildProcess } from '../../config/commonFixtures';
 import { stripAnsi } from '../../config/utils';
 import { expect } from '@playwright/test';
+import { nodePlatform } from '../../../packages/playwright-core/lib/server/utils/nodePlatform';
 export { expect } from '@playwright/test';
 
 type CLITestArgs = {
@@ -46,7 +47,7 @@ const codegenLang2Id: Map<string, string> = new Map([
 ]);
 const codegenLangId2lang = new Map([...codegenLang2Id.entries()].map(([lang, langId]) => [langId, lang]));
 
-const playwrightToAutomateInspector = require('../../../packages/playwright-core/lib/inProcessFactory').createInProcessPlaywright();
+const playwrightToAutomateInspector = require('../../../packages/playwright-core/lib/inProcessFactory').createInProcessPlaywright(nodePlatform);
 
 export const test = contextTest.extend<CLITestArgs>({
   recorderPageGetter: async ({ context, toImpl, mode }, run, testInfo) => {
@@ -67,7 +68,7 @@ export const test = contextTest.extend<CLITestArgs>({
     });
   },
 
-  runCLI: async ({ childProcess, browserName, channel, headless, mode, launchOptions, codegenMode }, run, testInfo) => {
+  runCLI: async ({ childProcess, browserName, channel, headless, mode, launchOptions }, run, testInfo) => {
     testInfo.skip(mode.startsWith('service'));
 
     await run((cliArgs, { autoExitWhen } = {}) => {
@@ -78,17 +79,15 @@ export const test = contextTest.extend<CLITestArgs>({
         args: cliArgs,
         executablePath: launchOptions.executablePath,
         autoExitWhen,
-        codegenMode
       });
     });
   },
 
-  openRecorder: async ({ context, recorderPageGetter, codegenMode }, run) => {
+  openRecorder: async ({ context, recorderPageGetter }, run) => {
     await run(async (options?: { testIdAttributeName?: string }) => {
       await (context as any)._enableRecorder({
         language: 'javascript',
         mode: 'recording',
-        codegenMode,
         ...options
       });
       const page = await context.newPage();
@@ -220,6 +219,10 @@ export class Recorder {
     await this.page.mouse.up(options);
   }
 
+  async trustedPress(text: string) {
+    await this.page.keyboard.press(text);
+  }
+
   async trustedDblclick() {
     await this.page.mouse.down();
     await this.page.mouse.up();
@@ -235,7 +238,7 @@ export class Recorder {
 class CLIMock {
   process: TestChildProcess;
 
-  constructor(childProcess: CommonFixtures['childProcess'], options: { browserName: string, channel: string | undefined, headless: boolean | undefined, args: string[], executablePath: string | undefined, autoExitWhen: string | undefined, codegenMode?: 'trace-events' | 'actions'}) {
+  constructor(childProcess: CommonFixtures['childProcess'], options: { browserName: string, channel: string | undefined, headless: boolean | undefined, args: string[], executablePath: string | undefined, autoExitWhen: string | undefined}) {
     const nodeArgs = [
       'node',
       path.join(__dirname, '..', '..', '..', 'packages', 'playwright-core', 'cli.js'),
@@ -248,7 +251,6 @@ class CLIMock {
     this.process = childProcess({
       command: nodeArgs,
       env: {
-        PW_RECORDER_IS_TRACE_VIEWER: options.codegenMode === 'trace-events' ? '1' : undefined,
         PWTEST_CLI_AUTO_EXIT_WHEN: options.autoExitWhen,
         PWTEST_CLI_IS_UNDER_TEST: '1',
         PWTEST_CLI_HEADLESS: options.headless ? '1' : undefined,

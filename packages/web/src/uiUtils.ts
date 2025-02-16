@@ -14,6 +14,7 @@
   limitations under the License.
 */
 
+import type { EffectCallback } from 'react';
 import React from 'react';
 
 // Recalculates the value when dependencies change.
@@ -224,3 +225,36 @@ export function scrollIntoViewIfNeeded(element: Element | undefined) {
 
 const kControlCodesRe = '\\u0000-\\u0020\\u007f-\\u009f';
 export const kWebLinkRe = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|www\\.)[^\\s' + kControlCodesRe + '"]{2,}[^\\s' + kControlCodesRe + '"\')}\\],:;.!?]', 'ug');
+
+/**
+ * Manages flash animation state.
+ * Calling `trigger` will turn `flash` to true for a second, and then back to false.
+ * If `trigger` is called while a flash is ongoing, the ongoing flash will be cancelled and after 50ms a new flash is started.
+ * @returns [flash, trigger]
+ */
+export function useFlash(): [boolean, EffectCallback] {
+  const [flash, setFlash] = React.useState(false);
+  const trigger = React.useCallback<React.EffectCallback>(() => {
+    const timeouts: any[] = [];
+    setFlash(currentlyFlashing => {
+      timeouts.push(setTimeout(() => setFlash(false), 1000));
+      if (!currentlyFlashing)
+        return true;
+
+      timeouts.push(setTimeout(() => setFlash(true), 50));
+      return false;
+    });
+    return () => timeouts.forEach(clearTimeout);
+  }, [setFlash]);
+  return [flash, trigger];
+}
+
+export function useCookies() {
+  const cookies = React.useMemo(() => {
+    return document.cookie.split('; ').filter(v => v.includes('=')).map(kv => {
+      const separator = kv.indexOf('=');
+      return [kv.substring(0, separator), kv.substring(separator + 1)];
+    });
+  }, []);
+  return cookies;
+}

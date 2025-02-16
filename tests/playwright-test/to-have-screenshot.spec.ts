@@ -619,6 +619,9 @@ test('should write missing expectations locally twice and attach them', async ({
   const result = await runInlineTest({
     ...playwrightConfig({
       snapshotPathTemplate: '__screenshots__/{testFilePath}/{arg}{ext}',
+      use: {
+        pageSnapshot: 'off',
+      },
     }),
     'a.spec.js': `
       const { test, expect } = require('@playwright/test');
@@ -688,7 +691,12 @@ test('should attach missing expectations to right step', async ({ runInlineTest 
       }
       module.exports = Reporter;
     `,
-    ...playwrightConfig({ reporter: [['dot'], ['./reporter']] }),
+    ...playwrightConfig({
+      reporter: [['dot'], ['./reporter']],
+      use: {
+        pageSnapshot: 'off',
+      }
+    }),
     'a.spec.js': `
       const { test, expect } = require('@playwright/test');
       test('is a test', async ({ page }) => {
@@ -738,6 +746,25 @@ test('should update snapshot with the update-snapshots flag', async ({ runInline
   const snapshotOutputPath = testInfo.outputPath('__screenshots__/a.spec.js/snapshot.png');
   expect(result.output).toContain(`${snapshotOutputPath} is re-generated, writing actual.`);
   expect(comparePNGs(fs.readFileSync(snapshotOutputPath), whiteImage)).toBe(null);
+});
+
+test('should respect config.expect.toHaveScreenshot.pathTemplate', async ({ runInlineTest }, testInfo) => {
+  const result = await runInlineTest({
+    ...playwrightConfig({
+      snapshotPathTemplate: '__screenshots__/{testFilePath}/{arg}{ext}',
+      expect: { toHaveScreenshot: { pathTemplate: 'actual-screenshots/{testFilePath}/{arg}{ext}' } },
+    }),
+    '__screenshots__/a.spec.js/snapshot.png': blueImage,
+    'actual-screenshots/a.spec.js/snapshot.png': whiteImage,
+    'a.spec.js': `
+      const { test, expect } = require('@playwright/test');
+      test('is a test', async ({ page }) => {
+        await expect(page).toHaveScreenshot('snapshot.png');
+      });
+    `
+  });
+  expect(result.exitCode).toBe(0);
+  expect(result.passed).toBe(1);
 });
 
 test('shouldn\'t update snapshot with the update-snapshots flag for negated matcher', async ({ runInlineTest }, testInfo) => {
@@ -1099,6 +1126,9 @@ test('should attach expected/actual/diff when sizes are different', async ({ run
   const result = await runInlineTest({
     ...playwrightConfig({
       snapshotPathTemplate: '__screenshots__/{testFilePath}/{arg}{ext}',
+      use: {
+        pageSnapshot: 'off',
+      },
     }),
     '__screenshots__/a.spec.js/snapshot.png': createImage(2, 2),
     'a.spec.js': `
@@ -1357,6 +1387,9 @@ test('should trim+sanitize attachment names and paths', async ({ runInlineTest }
   const result = await runInlineTest({
     ...playwrightConfig({
       snapshotPathTemplate: '__screenshots__/{testFilePath}/{arg}{ext}',
+      use: {
+        pageSnapshot: 'off',
+      }
     }),
     'a.spec.js': `
       const { test, expect } = require('@playwright/test');
