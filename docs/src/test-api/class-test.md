@@ -1751,7 +1751,7 @@ Step name.
 
 ### param: Test.step.body
 * since: v1.10
-- `body` <[function]\(\):[Promise]<[any]>>
+- `body` <[function]\([TestStepInfo]\):[Promise]<[any]>>
 
 Step body.
 
@@ -1822,7 +1822,7 @@ Maximum time in milliseconds for the step to finish. Defaults to `0` (no timeout
 * since: v1.50
 - `timeout` <[float]>
 
-Maximum time in milliseconds for the step to finish. Defaults to `0` (no timeout).
+The maximum time, in milliseconds, allowed for the step to complete. If the step does not complete within the specified timeout, the [`method: Test.step`] method will throw a [TimeoutError]. Defaults to `0` (no timeout).
 
 ## method: Test.use
 * since: v1.10

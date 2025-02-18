@@ -14,25 +14,27 @@
  * limitations under the License.
  */
 
-import { colors } from 'playwright-core/lib/utilsBundle';
-import { debugTest, relativeFilePath } from '../util';
-import type { TestBeginPayload, TestEndPayload, RunPayload, DonePayload, WorkerInitParams, TeardownErrorsPayload, TestInfoErrorImpl } from '../common/ipc';
-import { stdioChunkToParams } from '../common/ipc';
-import { setCurrentTestInfo, setIsWorkerProcess } from '../common/globals';
-import { deserializeConfig } from '../common/configLoader';
-import type { Suite, TestCase } from '../common/test';
-import type { Annotation, FullConfigInternal, FullProjectInternal } from '../common/config';
-import { FixtureRunner } from './fixtureRunner';
 import { ManualPromise, gracefullyCloseAll, removeFolders } from 'playwright-core/lib/utils';
+import { colors } from 'playwright-core/lib/utils';
+
+import { deserializeConfig } from '../common/configLoader';
+import { setCurrentTestInfo, setIsWorkerProcess } from '../common/globals';
+import { stdioChunkToParams } from '../common/ipc';
+import { debugTest, relativeFilePath } from '../util';
+import { FixtureRunner } from './fixtureRunner';
 import { SkipError, TestInfoImpl } from './testInfo';
-import { ProcessRunner } from '../common/process';
-import { loadTestFile } from '../common/testLoader';
-import { applyRepeatEachIndex, bindFileSuiteToProject, filterTestsRemoveEmptySuites } from '../common/suiteUtils';
-import { PoolBuilder } from '../common/poolBuilder';
-import type { Location } from '../../types/testReporter';
-import { inheritFixtureNames } from '../common/fixtures';
-import { type TimeSlot } from './timeoutManager';
 import { testInfoError } from './util';
+import { inheritFixtureNames } from '../common/fixtures';
+import { PoolBuilder } from '../common/poolBuilder';
+import { ProcessRunner } from '../common/process';
+import { applyRepeatEachIndex, bindFileSuiteToProject, filterTestsRemoveEmptySuites } from '../common/suiteUtils';
+import { loadTestFile } from '../common/testLoader';
+
+import type { TimeSlot } from './timeoutManager';
+import type { Location } from '../../types/testReporter';
+import type { Annotation, FullConfigInternal, FullProjectInternal } from '../common/config';
+import type { DonePayload, RunPayload, TeardownErrorsPayload, TestBeginPayload, TestEndPayload, TestInfoErrorImpl, WorkerInitParams } from '../common/ipc';
+import type { Suite, TestCase } from '../common/test';
 
 export class WorkerMain extends ProcessRunner {
   private _params: WorkerInitParams;
@@ -75,16 +77,20 @@ export class WorkerMain extends ProcessRunner {
 
     process.on('unhandledRejection', reason => this.unhandledError(reason));
     process.on('uncaughtException', error => this.unhandledError(error));
-    process.stdout.write = (chunk: string | Buffer) => {
+    process.stdout.write = (chunk: string | Buffer, cb?: any) => {
       this.dispatchEvent('stdOut', stdioChunkToParams(chunk));
       this._currentTest?._tracing.appendStdioToTrace('stdout', chunk);
+      if (typeof cb === 'function')
+        process.nextTick(cb);
       return true;
     };
 
     if (!process.env.PW_RUNNER_DEBUG) {
-      process.stderr.write = (chunk: string | Buffer) => {
+      process.stderr.write = (chunk: string | Buffer, cb?: any) => {
         this.dispatchEvent('stdErr', stdioChunkToParams(chunk));
         this._currentTest?._tracing.appendStdioToTrace('stderr', chunk);
+        if (typeof cb === 'function')
+          process.nextTick(cb);
         return true;
       };
     }
@@ -101,6 +107,10 @@ export class WorkerMain extends ProcessRunner {
   override async gracefullyClose() {
     try {
       await this._stop();
+      if (!this._config) {
+        // We never set anything up and we can crash on attempting cleanup
+        return;
+      }
       // Ignore top-level errors, they are already inside TestInfo.errors.
       const fakeTestInfo = new TestInfoImpl(this._config, this._project, this._params, undefined, 0, () => {}, () => {}, () => {});
       const runnable = { type: 'teardown' } as const;
@@ -186,15 +196,19 @@ export class WorkerMain extends ProcessRunner {
     if (this._config)
       return;
 
-    this._config = await deserializeConfig(this._params.config);
-    this._project = this._config.projects.find(p => p.id === this._params.projectId)!;
+    const config = await deserializeConfig(this._params.config);
+    const project = config.projects.find(p => p.id === this._params.projectId);
+    if (!project)
+      throw new Error(`Project "${this._params.projectId}" not found in the worker process. Make sure project name does not change.`);
+    this._config = config;
+    this._project = project;
     this._poolBuilder = PoolBuilder.createForWorker(this._project);
   }
 
   async runTestGroup(runPayload: RunPayload) {
     this._runFinished = new ManualPromise<void>();
     const entries = new Map(runPayload.entries.map(e => [e.testId, e]));
-    let fatalUnknownTestIds;
+    let fatalUnknownTestIds: string[] | undefined;
     try {
       await this._loadIfNeeded();
       const fileSuite = await loadTestFile(runPayload.file, this._config.config.rootDir);
@@ -384,6 +398,8 @@ export class WorkerMain extends ProcessRunner {
       } catch (error) {
         firstAfterHooksError = firstAfterHooksError ?? error;
       }
+
+      testInfo._tracing.didFinishTestFunctionAndAfterEachHooks();
 
       try {
         // Teardown test-scoped fixtures. Attribute to 'test' so that users understand

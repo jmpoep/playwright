@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import { ms as milliseconds } from 'playwright-core/lib/utilsBundle';
-import { TerminalReporter, stepSuffix, stripAnsiEscapes } from './base';
-import type { FullResult, Suite, TestCase, TestError, TestResult, TestStep } from '../../types/testReporter';
 import { getAsBooleanFromENV } from 'playwright-core/lib/utils';
+import { ms as milliseconds } from 'playwright-core/lib/utilsBundle';
+
+import { TerminalReporter, stepSuffix, stripAnsiEscapes } from './base';
+
+import type { FullResult, Suite, TestCase, TestError, TestResult, TestStep } from '../../types/testReporter';
 
 // Allow it in the Visual Studio Code Terminal and the new Windows Terminal
 const DOES_NOT_SUPPORT_UTF8_IN_TERMINAL = process.platform === 'win32' && process.env.TERM_PROGRAM !== 'vscode' && !process.env.WT_SESSION;
@@ -129,6 +131,8 @@ class ListReporter extends TerminalReporter {
     if (this._needNewLine) {
       this._needNewLine = false;
       process.stdout.write('\n');
+      ++this._lastRow;
+      this._lastColumn = 0;
     }
   }
 
@@ -210,6 +214,7 @@ class ListReporter extends TerminalReporter {
       process.stdout.write('\n');
     }
     ++this._lastRow;
+    this._lastColumn = 0;
   }
 
   private _updateLine(row: number, text: string, prefix: string) {

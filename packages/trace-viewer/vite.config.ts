@@ -17,7 +17,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { bundle } from './bundle';
-import path from 'path';
+import * as path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -46,7 +46,6 @@ export default defineConfig({
       input: {
         index: path.resolve(__dirname, 'index.html'),
         uiMode: path.resolve(__dirname, 'uiMode.html'),
-        recorder: path.resolve(__dirname, 'recorder.html'),
         snapshot: path.resolve(__dirname, 'snapshot.html'),
       },
       output: {

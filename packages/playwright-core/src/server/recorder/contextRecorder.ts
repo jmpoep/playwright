@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-import type * as channels from '@protocol/channels';
-import type { Source } from '@recorder/recorderTypes';
 import { EventEmitter } from 'events';
+
+import { RecorderCollection } from './recorderCollection';
 import * as recorderSource from '../../generated/pollingRecorderSource';
-import { eventsHelper, monotonicTime, quoteCSSAttributeValue, type RegisteredListener } from '../../utils';
-import { raceAgainstDeadline } from '../../utils/timeoutRunner';
+import { eventsHelper, monotonicTime, quoteCSSAttributeValue  } from '../../utils';
+import { raceAgainstDeadline } from '../../utils/isomorphic/timeoutRunner';
 import { BrowserContext } from '../browserContext';
-import type { LanguageGeneratorOptions, Language, LanguageGenerator } from '../codegen/types';
 import { languageSet } from '../codegen/languages';
-import type { Dialog } from '../dialog';
 import { Frame } from '../frames';
 import { Page } from '../page';
-import type * as actions from '@recorder/actions';
 import { ThrottledFile } from './throttledFile';
-import { RecorderCollection } from './recorderCollection';
 import { generateCode } from '../codegen/language';
+
+import type { RegisteredListener } from '../../utils';
+import type { Language, LanguageGenerator, LanguageGeneratorOptions } from '../codegen/types';
+import type { Dialog } from '../dialog';
+import type * as channels from '@protocol/channels';
+import type * as actions from '@recorder/actions';
+import type { Source } from '@recorder/recorderTypes';
 
 type BindingSource = { frame: Frame, page: Page };
 
@@ -54,11 +57,9 @@ export class ContextRecorder extends EventEmitter {
   private _throttledOutputFile: ThrottledFile | null = null;
   private _orderedLanguages: LanguageGenerator[] = [];
   private _listeners: RegisteredListener[] = [];
-  private _codegenMode: 'actions' | 'trace-events';
 
-  constructor(codegenMode: 'actions' | 'trace-events', context: BrowserContext, params: channels.BrowserContextEnableRecorderParams, delegate: ContextRecorderDelegate) {
+  constructor(context: BrowserContext, params: channels.BrowserContextEnableRecorderParams, delegate: ContextRecorderDelegate) {
     super();
-    this._codegenMode = codegenMode;
     this._context = context;
     this._params = params;
     this._delegate = delegate;
@@ -150,12 +151,6 @@ export class ContextRecorder extends EventEmitter {
 
   setEnabled(enabled: boolean) {
     this._collection.setEnabled(enabled);
-    if (this._codegenMode === 'trace-events') {
-      if (enabled)
-        this._context.tracing.startChunk({ name: 'trace', title: 'trace' }).catch(() => {});
-      else
-        this._context.tracing.stopChunk({ mode: 'discard' }).catch(() => {});
-    }
   }
 
   dispose() {

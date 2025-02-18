@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-import fs from 'fs';
-import type { StackFrame } from '@protocol/channels';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as url from 'url';
 import util from 'util';
-import path from 'path';
-import url from 'url';
-import { debug, mime, minimatch, parseStackTraceLine } from 'playwright-core/lib/utilsBundle';
-import { formatCallLog } from 'playwright-core/lib/utils';
+
+import { parseStackFrame, sanitizeForFilePath, calculateSha1, isRegExp, isString, stringifyStackFrames } from 'playwright-core/lib/utils';
+import { colors, debug, mime, minimatch } from 'playwright-core/lib/utilsBundle';
+
 import type { Location } from './../types/testReporter';
-import { calculateSha1, isRegExp, isString, sanitizeForFilePath, stringifyStackFrames } from 'playwright-core/lib/utils';
-import type { RawStack } from 'playwright-core/lib/utils';
 import type { TestInfoErrorImpl } from './common/ipc';
+import type { StackFrame } from '@protocol/channels';
+import type { RawStack } from 'playwright-core/lib/utils';
 
 const PLAYWRIGHT_TEST_PATH = path.join(__dirname, '..');
 const PLAYWRIGHT_CORE_PATH = path.dirname(require.resolve('playwright-core/package.json'));
@@ -54,7 +55,7 @@ export function filterStackFile(file: string) {
 export function filteredStackTrace(rawStack: RawStack): StackFrame[] {
   const frames: StackFrame[] = [];
   for (const line of rawStack) {
-    const frame = parseStackTraceLine(line);
+    const frame = parseStackFrame(line, path.sep, !!process.env.PWDEBUGIMPL);
     if (!frame || !frame.file)
       continue;
     if (!filterStackFile(frame.file))
@@ -223,7 +224,14 @@ export function getContainedPath(parentPath: string, subPath: string = ''): stri
 
 export const debugTest = debug('pw:test');
 
-export const callLogText = formatCallLog;
+export const callLogText = (log: string[] | undefined) => {
+  if (!log || !log.some(l => !!l))
+    return '';
+  return `
+Call log:
+${colors.dim(log.join('\n'))}
+`;
+};
 
 const folderToPackageJsonPath = new Map<string, string>();
 

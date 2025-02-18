@@ -155,7 +155,7 @@ Additional locator to match.
 - returns: <[string]>
 
 Captures the aria snapshot of the given element.
-Read more about [aria snapshots](../aria-snapshots.md) and [`method: LocatorAssertions.toMatchAriaSnapshot#1`] for the corresponding assertion.
+Read more about [aria snapshots](../aria-snapshots.md) and [`method: LocatorAssertions.toMatchAriaSnapshot`] for the corresponding assertion.
 
 **Usage**
 
@@ -863,31 +863,6 @@ If [`param: expression`] returns a [Promise], this method will wait for the prom
 If [`param: expression`] throws or rejects, this method throws.
 
 **Usage**
-
-```js
-const tweets = page.locator('.tweet .retweets');
-expect(await tweets.evaluate(node => node.innerText)).toBe('10 retweets');
-```
-
-```java
-Locator tweets = page.locator(".tweet .retweets");
-assertEquals("10 retweets", tweets.evaluate("node => node.innerText"));
-```
-
-```python async
-tweets = page.locator(".tweet .retweets")
-assert await tweets.evaluate("node => node.innerText") == "10 retweets"
-```
-
-```python sync
-tweets = page.locator(".tweet .retweets")
-assert tweets.evaluate("node => node.innerText") == "10 retweets"
-```
-
-```csharp
-var tweets = page.Locator(".tweet .retweets");
-Assert.AreEqual("10 retweets", await tweets.EvaluateAsync("node => node.innerText"));
-```
 
 ### param: Locator.evaluate.expression = %%-evaluate-expression-%%
 * since: v1.14

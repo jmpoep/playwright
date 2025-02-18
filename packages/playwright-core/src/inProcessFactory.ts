@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
-import type { Playwright as PlaywrightAPI } from './client/playwright';
-import { createPlaywright, DispatcherConnection, RootDispatcher, PlaywrightDispatcher } from './server';
-import { Connection } from './client/connection';
-import { BrowserServerLauncherImpl } from './browserServerImpl';
 import { AndroidServerLauncherImpl } from './androidServerImpl';
+import { BrowserServerLauncherImpl } from './browserServerImpl';
+import { createConnectionFactory } from './client/clientBundle';
+import { DispatcherConnection, PlaywrightDispatcher, RootDispatcher, createPlaywright } from './server';
+import { nodePlatform } from './server/utils/nodePlatform';
+
+import type { Playwright as PlaywrightAPI } from './client/playwright';
 import type { Language } from './utils';
+
+const connectionFactory = createConnectionFactory(nodePlatform);
 
 export function createInProcessPlaywright(): PlaywrightAPI {
   const playwright = createPlaywright({ sdkLanguage: (process.env.PW_LANG_NAME as Language | undefined) || 'javascript' });
 
-  const clientConnection = new Connection(undefined, undefined);
+  const clientConnection = connectionFactory();
   clientConnection.useRawBuffers();
   const dispatcherConnection = new DispatcherConnection(true /* local */);
 

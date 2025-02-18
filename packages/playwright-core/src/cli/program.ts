@@ -16,25 +16,29 @@
 
 /* eslint-disable no-console */
 
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import type { Command } from '../utilsBundle';
-import { program, dotenv } from '../utilsBundle';
-export { program } from '../utilsBundle';
-import { runDriver, runServer, printApiJson, launchBrowserServer } from './driver';
-import { runTraceInBrowser, runTraceViewerApp } from '../server/trace/viewer/traceViewer';
-import type { TraceViewerServerOptions } from '../server/trace/viewer/traceViewer';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+
 import * as playwright from '../..';
-import type { BrowserContext } from '../client/browserContext';
-import type { Browser } from '../client/browser';
-import type { Page } from '../client/page';
-import type { BrowserType } from '../client/browserType';
-import type { BrowserContextOptions, LaunchOptions } from '../client/types';
-import { wrapInASCIIBox, isLikelyNpxGlobal, assert, gracefullyProcessExitDoNotHang, getPackageManagerExecCommand } from '../utils';
-import type { Executable } from '../server';
+import { launchBrowserServer, printApiJson, runDriver, runServer } from './driver';
 import { registry, writeDockerVersion } from '../server';
-import { isTargetClosedError } from '../client/errors';
+import { gracefullyProcessExitDoNotHang, isLikelyNpxGlobal } from '../utils';
+import { runTraceInBrowser, runTraceViewerApp } from '../server/trace/viewer/traceViewer';
+import { assert, getPackageManagerExecCommand } from '../utils';
+import { wrapInASCIIBox } from '../server/utils/ascii';
+import { dotenv, program } from '../utilsBundle';
+
+import type { Browser } from '../client/browser';
+import type { BrowserContext } from '../client/browserContext';
+import type { BrowserType } from '../client/browserType';
+import type { Page } from '../client/page';
+import type { BrowserContextOptions, LaunchOptions } from '../client/types';
+import type { Executable } from '../server';
+import type { TraceViewerServerOptions } from '../server/trace/viewer/traceViewer';
+import type { Command } from '../utilsBundle';
+
+export { program } from '../utilsBundle';
 
 const packageJSON = require('../../package.json');
 
@@ -65,7 +69,6 @@ commandWithOpenOptions('codegen [url]', 'open page and generate code for user ac
     [
       ['-o, --output <file name>', 'saves the generated script to a file'],
       ['--target <language>', `language to generate, one of javascript, playwright-test, python, python-async, python-pytest, csharp, csharp-mstest, csharp-nunit, java, java-junit`, codegenId()],
-      ['--save-trace <filename>', 'record a trace for the session and save it to a file'],
       ['--test-id-attribute <attributeName>', 'use the specified attribute to generate data test ID selectors'],
     ]).action(function(url, options) {
   codegen(options, url).catch(logErrorAndExit);
@@ -353,7 +356,6 @@ type Options = {
   saveHar?: string;
   saveHarGlob?: string;
   saveStorage?: string;
-  saveTrace?: string;
   timeout: string;
   timezone?: string;
   viewportSize?: string;
@@ -508,8 +510,6 @@ async function launchContext(options: Options, extraOptions: LaunchOptions): Pro
     if (closingBrowser)
       return;
     closingBrowser = true;
-    if (options.saveTrace)
-      await context.tracing.stop({ path: options.saveTrace });
     if (options.saveStorage)
       await context.storageState({ path: options.saveStorage }).catch(e => null);
     if (options.saveHar)
@@ -536,9 +536,6 @@ async function launchContext(options: Options, extraOptions: LaunchOptions): Pro
   context.setDefaultTimeout(timeout);
   context.setDefaultNavigationTimeout(timeout);
 
-  if (options.saveTrace)
-    await context.tracing.start({ screenshots: true, snapshots: true });
-
   // Omit options that we add automatically for presentation purpose.
   delete launchOptions.headless;
   delete launchOptions.executablePath;
@@ -555,7 +552,7 @@ async function openPage(context: BrowserContext, url: string | undefined): Promi
     else if (!url.startsWith('http') && !url.startsWith('file://') && !url.startsWith('about:') && !url.startsWith('data:'))
       url = 'http://' + url;
     await page.goto(url).catch(error => {
-      if (process.env.PWTEST_CLI_AUTO_EXIT_WHEN && isTargetClosedError(error)) {
+      if (process.env.PWTEST_CLI_AUTO_EXIT_WHEN) {
         // Tests with PWTEST_CLI_AUTO_EXIT_WHEN might close page too fast, resulting
         // in a stray navigation aborted error. We should ignore it.
       } else {
@@ -595,7 +592,6 @@ async function codegen(options: Options & { target: string, output?: string, tes
     device: options.device,
     saveStorage: options.saveStorage,
     mode: 'recording',
-    codegenMode: process.env.PW_RECORDER_IS_TRACE_VIEWER ? 'trace-events' : 'actions',
     testIdAttributeName,
     outputFile: outputFile ? path.resolve(outputFile) : undefined,
     handleSIGINT: false,

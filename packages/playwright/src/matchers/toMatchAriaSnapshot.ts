@@ -15,27 +15,33 @@
  */
 
 
-import type { LocatorEx } from './matchers';
-import type { ExpectMatcherState } from '../../types/test';
-import { kNoElementsFoundError, matcherHint, type MatcherResult } from './matcherHint';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import { escapeTemplateString, isString, sanitizeForFilePath } from 'playwright-core/lib/utils';
+
+import {  kNoElementsFoundError, matcherHint } from './matcherHint';
 import { EXPECTED_COLOR } from '../common/expectBundle';
 import { callLogText, sanitizeFilePathBeforeExtension, trimLongString } from '../util';
 import { printReceivedStringContainExpectedSubstring } from './expect';
 import { currentTestInfo } from '../common/globals';
+
+import type { MatcherResult } from './matcherHint';
+import type { LocatorEx } from './matchers';
+import type { ExpectMatcherState } from '../../types/test';
 import type { MatcherReceived } from '@injected/ariaSnapshot';
-import { escapeTemplateString, isString, sanitizeForFilePath } from 'playwright-core/lib/utils';
-import fs from 'fs';
-import path from 'path';
+
 
 type ToMatchAriaSnapshotExpected = {
   name?: string;
   path?: string;
+  timeout?: number;
 } | string;
 
 export async function toMatchAriaSnapshot(
   this: ExpectMatcherState,
   receiver: LocatorEx,
-  expectedParam: ToMatchAriaSnapshotExpected,
+  expectedParam?: ToMatchAriaSnapshotExpected,
   options: { timeout?: number } = {},
 ): Promise<MatcherResult<string | RegExp, string>> {
   const matcherName = 'toMatchAriaSnapshot';
@@ -48,6 +54,8 @@ export async function toMatchAriaSnapshot(
     return { pass: !this.isNot, message: () => '', name: 'toMatchAriaSnapshot', expected: '' };
 
   const updateSnapshots = testInfo.config.updateSnapshots;
+  const pathTemplate = testInfo._projectInternal.expect?.toMatchAriaSnapshot?.pathTemplate;
+  const defaultTemplate = '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}';
 
   const matcherOptions = {
     isNot: this.isNot,
@@ -55,14 +63,14 @@ export async function toMatchAriaSnapshot(
   };
 
   let expected: string;
+  let timeout: number;
   let expectedPath: string | undefined;
   if (isString(expectedParam)) {
     expected = expectedParam;
+    timeout = options.timeout ?? this.timeout;
   } else {
-    if (expectedParam?.path) {
-      expectedPath = expectedParam.path;
-    } else if (expectedParam?.name) {
-      expectedPath = testInfo.snapshotPath(sanitizeFilePathBeforeExtension(expectedParam.name));
+    if (expectedParam?.name) {
+      expectedPath = testInfo._resolveSnapshotPath(pathTemplate, defaultTemplate, [sanitizeFilePathBeforeExtension(expectedParam.name)]);
     } else {
       let snapshotNames = (testInfo as any)[snapshotNamesSymbol] as SnapshotNames;
       if (!snapshotNames) {
@@ -70,9 +78,10 @@ export async function toMatchAriaSnapshot(
         (testInfo as any)[snapshotNamesSymbol] = snapshotNames;
       }
       const fullTitleWithoutSpec = [...testInfo.titlePath.slice(1), ++snapshotNames.anonymousSnapshotIndex].join(' ');
-      expectedPath = testInfo.snapshotPath(sanitizeForFilePath(trimLongString(fullTitleWithoutSpec)) + '.yml');
+      expectedPath = testInfo._resolveSnapshotPath(pathTemplate, defaultTemplate, [sanitizeForFilePath(trimLongString(fullTitleWithoutSpec)) + '.yml']);
     }
     expected = await fs.promises.readFile(expectedPath, 'utf8').catch(() => '');
+    timeout = expectedParam?.timeout ?? this.timeout;
   }
 
   const generateMissingBaseline = updateSnapshots === 'missing' && !expected;
@@ -86,7 +95,6 @@ export async function toMatchAriaSnapshot(
     }
   }
 
-  const timeout = options.timeout ?? this.timeout;
   expected = unshift(expected);
   const { matches: pass, received, log, timedOut } = await receiver._expect('to.match.aria', { expectedValue: expected, isNot: this.isNot, timeout });
   const typedReceived = received as MatcherReceived | typeof kNoElementsFoundError;
@@ -136,7 +144,15 @@ export async function toMatchAriaSnapshot(
         }
         return { pass: true, message: () => '', name: 'toMatchAriaSnapshot' };
       } else {
-        const suggestedRebaseline = `toMatchAriaSnapshot(\`\n${escapeTemplateString(indent(typedReceived.regex, '{indent}  '))}\n{indent}\`)`;
+        const suggestedRebaseline = `\`\n${escapeTemplateString(indent(typedReceived.regex, '{indent}  '))}\n{indent}\``;
+        if (updateSnapshots === 'missing') {
+          const message = 'A snapshot is not provided, generating new baseline.';
+          testInfo._hasNonRetriableError = true;
+          testInfo._failWithError(new Error(message));
+        }
+        // TODO: ideally, we should return "pass: true" here because this matcher passes
+        // when regenerating baselines. However, we can only access suggestedRebaseline in case
+        // of an error, so we fail here and workaround it in the expect implementation.
         return { pass: false, message: () => '', name: 'toMatchAriaSnapshot', suggestedRebaseline };
       }
     }
