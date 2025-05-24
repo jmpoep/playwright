@@ -52,7 +52,6 @@ export type InitializerTraits<T> =
     T extends EventTargetChannel ? EventTargetInitializer :
     T extends BrowserChannel ? BrowserInitializer :
     T extends BrowserTypeChannel ? BrowserTypeInitializer :
-    T extends SelectorsChannel ? SelectorsInitializer :
     T extends SocksSupportChannel ? SocksSupportInitializer :
     T extends DebugControllerChannel ? DebugControllerInitializer :
     T extends PlaywrightChannel ? PlaywrightInitializer :
@@ -90,7 +89,6 @@ export type EventsTraits<T> =
     T extends EventTargetChannel ? EventTargetEvents :
     T extends BrowserChannel ? BrowserEvents :
     T extends BrowserTypeChannel ? BrowserTypeEvents :
-    T extends SelectorsChannel ? SelectorsEvents :
     T extends SocksSupportChannel ? SocksSupportEvents :
     T extends DebugControllerChannel ? DebugControllerEvents :
     T extends PlaywrightChannel ? PlaywrightEvents :
@@ -128,7 +126,6 @@ export type EventTargetTraits<T> =
     T extends EventTargetChannel ? EventTargetEventTarget :
     T extends BrowserChannel ? BrowserEventTarget :
     T extends BrowserTypeChannel ? BrowserTypeEventTarget :
-    T extends SelectorsChannel ? SelectorsEventTarget :
     T extends SocksSupportChannel ? SocksSupportEventTarget :
     T extends DebugControllerChannel ? DebugControllerEventTarget :
     T extends PlaywrightChannel ? PlaywrightEventTarget :
@@ -150,7 +147,7 @@ export type Metadata = {
     line?: number,
     column?: number,
   },
-  apiName?: string,
+  title?: string,
   internal?: boolean,
   stepId?: string,
 };
@@ -215,6 +212,12 @@ export type ExpectedTextValue = {
   matchSubstring?: boolean,
   ignoreCase?: boolean,
   normalizeWhiteSpace?: boolean,
+};
+
+export type SelectorEngine = {
+  name: string,
+  source: string,
+  contentScript?: boolean,
 };
 
 export type AXNode = {
@@ -321,7 +324,7 @@ export type SerializedError = {
 };
 
 export type RecordHarOptions = {
-  path: string,
+  zip?: boolean,
   content?: 'embed' | 'attach' | 'omit',
   mode?: 'full' | 'minimal',
   urlGlob?: string,
@@ -622,7 +625,6 @@ export type PlaywrightInitializer = {
   android: AndroidChannel,
   electron: ElectronChannel,
   utils?: LocalUtilsChannel,
-  selectors: SelectorsChannel,
   preLaunchedBrowser?: BrowserChannel,
   preConnectedAndroidDevice?: AndroidDeviceChannel,
   socksSupport?: SocksSupportChannel,
@@ -897,35 +899,6 @@ export interface SocksSupportEvents {
   'socksClosed': SocksSupportSocksClosedEvent;
 }
 
-// ----------- Selectors -----------
-export type SelectorsInitializer = {};
-export interface SelectorsEventTarget {
-}
-export interface SelectorsChannel extends SelectorsEventTarget, Channel {
-  _type_Selectors: boolean;
-  register(params: SelectorsRegisterParams, metadata?: CallMetadata): Promise<SelectorsRegisterResult>;
-  setTestIdAttributeName(params: SelectorsSetTestIdAttributeNameParams, metadata?: CallMetadata): Promise<SelectorsSetTestIdAttributeNameResult>;
-}
-export type SelectorsRegisterParams = {
-  name: string,
-  source: string,
-  contentScript?: boolean,
-};
-export type SelectorsRegisterOptions = {
-  contentScript?: boolean,
-};
-export type SelectorsRegisterResult = void;
-export type SelectorsSetTestIdAttributeNameParams = {
-  testIdAttributeName: string,
-};
-export type SelectorsSetTestIdAttributeNameOptions = {
-
-};
-export type SelectorsSetTestIdAttributeNameResult = void;
-
-export interface SelectorsEvents {
-}
-
 // ----------- BrowserType -----------
 export type BrowserTypeInitializer = {
   executablePath: string,
@@ -1072,9 +1045,10 @@ export type BrowserTypeLaunchPersistentContextParams = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   userDataDir: string,
   slowMo?: number,
 };
@@ -1154,12 +1128,14 @@ export type BrowserTypeLaunchPersistentContextOptions = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   slowMo?: number,
 };
 export type BrowserTypeLaunchPersistentContextResult = {
+  browser: BrowserChannel,
   context: BrowserContextChannel,
 };
 export type BrowserTypeConnectOverCDPParams = {
@@ -1186,6 +1162,7 @@ export type BrowserInitializer = {
   name: string,
 };
 export interface BrowserEventTarget {
+  on(event: 'context', callback: (params: BrowserContextEvent) => void): this;
   on(event: 'close', callback: (params: BrowserCloseEvent) => void): this;
 }
 export interface BrowserChannel extends BrowserEventTarget, Channel {
@@ -1200,6 +1177,9 @@ export interface BrowserChannel extends BrowserEventTarget, Channel {
   startTracing(params: BrowserStartTracingParams, metadata?: CallMetadata): Promise<BrowserStartTracingResult>;
   stopTracing(params?: BrowserStopTracingParams, metadata?: CallMetadata): Promise<BrowserStopTracingResult>;
 }
+export type BrowserContextEvent = {
+  context: BrowserContextChannel,
+};
 export type BrowserCloseEvent = {};
 export type BrowserCloseParams = {
   reason?: string,
@@ -1269,9 +1249,10 @@ export type BrowserNewContextParams = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   proxy?: {
     server: string,
     bypass?: string,
@@ -1336,9 +1317,10 @@ export type BrowserNewContextOptions = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   proxy?: {
     server: string,
     bypass?: string,
@@ -1406,9 +1388,10 @@ export type BrowserNewContextForReuseParams = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   proxy?: {
     server: string,
     bypass?: string,
@@ -1473,9 +1456,10 @@ export type BrowserNewContextForReuseOptions = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   proxy?: {
     server: string,
     bypass?: string,
@@ -1520,6 +1504,7 @@ export type BrowserStopTracingResult = {
 };
 
 export interface BrowserEvents {
+  'context': BrowserContextEvent;
   'close': BrowserCloseEvent;
 }
 
@@ -1553,6 +1538,64 @@ export type BrowserContextInitializer = {
   isChromium: boolean,
   requestContext: APIRequestContextChannel,
   tracing: TracingChannel,
+  options: {
+    noDefaultViewport?: boolean,
+    viewport?: {
+      width: number,
+      height: number,
+    },
+    screen?: {
+      width: number,
+      height: number,
+    },
+    ignoreHTTPSErrors?: boolean,
+    clientCertificates?: {
+      origin: string,
+      cert?: Binary,
+      key?: Binary,
+      passphrase?: string,
+      pfx?: Binary,
+    }[],
+    javaScriptEnabled?: boolean,
+    bypassCSP?: boolean,
+    userAgent?: string,
+    locale?: string,
+    timezoneId?: string,
+    geolocation?: {
+      longitude: number,
+      latitude: number,
+      accuracy?: number,
+    },
+    permissions?: string[],
+    extraHTTPHeaders?: NameValue[],
+    offline?: boolean,
+    httpCredentials?: {
+      username: string,
+      password: string,
+      origin?: string,
+      send?: 'always' | 'unauthorized',
+    },
+    deviceScaleFactor?: number,
+    isMobile?: boolean,
+    hasTouch?: boolean,
+    colorScheme?: 'dark' | 'light' | 'no-preference' | 'no-override',
+    reducedMotion?: 'reduce' | 'no-preference' | 'no-override',
+    forcedColors?: 'active' | 'none' | 'no-override',
+    acceptDownloads?: 'accept' | 'deny' | 'internal-browser-default',
+    contrast?: 'no-preference' | 'more' | 'no-override',
+    baseURL?: string,
+    recordVideo?: {
+      dir: string,
+      size?: {
+        width: number,
+        height: number,
+      },
+    },
+    strictSelectors?: boolean,
+    serviceWorkers?: 'allow' | 'block',
+    selectorEngines?: SelectorEngine[],
+    testIdAttributeName?: string,
+  },
 };
 export interface BrowserContextEventTarget {
   on(event: 'bindingCall', callback: (params: BrowserContextBindingCallEvent) => void): this;
@@ -1582,6 +1625,8 @@ export interface BrowserContextChannel extends BrowserContextEventTarget, EventT
   exposeBinding(params: BrowserContextExposeBindingParams, metadata?: CallMetadata): Promise<BrowserContextExposeBindingResult>;
   grantPermissions(params: BrowserContextGrantPermissionsParams, metadata?: CallMetadata): Promise<BrowserContextGrantPermissionsResult>;
   newPage(params?: BrowserContextNewPageParams, metadata?: CallMetadata): Promise<BrowserContextNewPageResult>;
+  registerSelectorEngine(params: BrowserContextRegisterSelectorEngineParams, metadata?: CallMetadata): Promise<BrowserContextRegisterSelectorEngineResult>;
+  setTestIdAttributeName(params: BrowserContextSetTestIdAttributeNameParams, metadata?: CallMetadata): Promise<BrowserContextSetTestIdAttributeNameResult>;
   setExtraHTTPHeaders(params: BrowserContextSetExtraHTTPHeadersParams, metadata?: CallMetadata): Promise<BrowserContextSetExtraHTTPHeadersResult>;
   setGeolocation(params: BrowserContextSetGeolocationParams, metadata?: CallMetadata): Promise<BrowserContextSetGeolocationResult>;
   setHTTPCredentials(params: BrowserContextSetHTTPCredentialsParams, metadata?: CallMetadata): Promise<BrowserContextSetHTTPCredentialsResult>;
@@ -1741,6 +1786,20 @@ export type BrowserContextNewPageOptions = {};
 export type BrowserContextNewPageResult = {
   page: PageChannel,
 };
+export type BrowserContextRegisterSelectorEngineParams = {
+  selectorEngine: SelectorEngine,
+};
+export type BrowserContextRegisterSelectorEngineOptions = {
+
+};
+export type BrowserContextRegisterSelectorEngineResult = void;
+export type BrowserContextSetTestIdAttributeNameParams = {
+  testIdAttributeName: string,
+};
+export type BrowserContextSetTestIdAttributeNameOptions = {
+
+};
+export type BrowserContextSetTestIdAttributeNameResult = void;
 export type BrowserContextSetExtraHTTPHeadersParams = {
   headers: NameValue[],
 };
@@ -4328,7 +4387,6 @@ export type ElectronLaunchParams = {
   ignoreHTTPSErrors?: boolean,
   locale?: string,
   offline?: boolean,
-  recordHar?: RecordHarOptions,
   recordVideo?: {
     dir: string,
     size?: {
@@ -4362,7 +4420,6 @@ export type ElectronLaunchOptions = {
   ignoreHTTPSErrors?: boolean,
   locale?: string,
   offline?: boolean,
-  recordHar?: RecordHarOptions,
   recordVideo?: {
     dir: string,
     size?: {
@@ -4754,9 +4811,10 @@ export type AndroidDeviceLaunchBrowserParams = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   pkg?: string,
   args?: string[],
   proxy?: {
@@ -4819,9 +4877,10 @@ export type AndroidDeviceLaunchBrowserOptions = {
       height: number,
     },
   },
-  recordHar?: RecordHarOptions,
   strictSelectors?: boolean,
   serviceWorkers?: 'allow' | 'block',
+  selectorEngines?: SelectorEngine[],
+  testIdAttributeName?: string,
   pkg?: string,
   args?: string[],
   proxy?: {

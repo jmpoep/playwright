@@ -26,8 +26,7 @@ import * as dom from '../dom';
 import * as frames from '../frames';
 import { helper } from '../helper';
 import * as network from '../network';
-import { kPlaywrightBinding } from '../javascript';
-import { Page, Worker } from '../page';
+import { Page, PageBinding, Worker } from '../page';
 import { registry } from '../registry';
 import { getAccessibilityTree } from './crAccessibility';
 import { CRBrowserContext } from './crBrowser';
@@ -53,10 +52,10 @@ import type * as types from '../types';
 import type * as channels from '@protocol/channels';
 
 
-const UTILITY_WORLD_NAME = '__playwright_utility_world__';
 export type WindowBounds = { top?: number, left?: number, width?: number, height?: number };
 
 export class CRPage implements PageDelegate {
+  readonly utilityWorldName: string;
   readonly _mainFrameSession: FrameSession;
   readonly _sessions = new Map<Protocol.Target.TargetID, FrameSession>();
   readonly _page: Page;
@@ -95,6 +94,9 @@ export class CRPage implements PageDelegate {
     this._coverage = new CRCoverage(client);
     this._browserContext = browserContext;
     this._page = new Page(this, browserContext);
+    // Create a unique utility world for this Playwright instance, just in case there
+    // are multiple instances of Playwright connected to the same browser page.
+    this.utilityWorldName = `__playwright_utility_world_${this._page.guid}`;
     this._networkManager = new CRNetworkManager(this._page, null);
     // Sync any browser context state to the network manager. This does not talk over CDP because
     // we have not connected any sessions to the network manager yet.
@@ -490,7 +492,7 @@ class FrameSession {
           this._client._sendMayFail('Page.createIsolatedWorld', {
             frameId: frame._id,
             grantUniveralAccess: true,
-            worldName: UTILITY_WORLD_NAME,
+            worldName: this._crPage.utilityWorldName,
           });
         }
 
@@ -512,7 +514,7 @@ class FrameSession {
       this._client.send('Runtime.enable', {}),
       this._client.send('Page.addScriptToEvaluateOnNewDocument', {
         source: '',
-        worldName: UTILITY_WORLD_NAME,
+        worldName: this._crPage.utilityWorldName,
       }),
       this._crPage._networkManager.addSession(this._client, undefined, this._isMainFrame()),
       this._client.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }),
@@ -675,7 +677,7 @@ class FrameSession {
     let worldName: types.World|null = null;
     if (contextPayload.auxData && !!contextPayload.auxData.isDefault)
       worldName = 'main';
-    else if (contextPayload.name === UTILITY_WORLD_NAME)
+    else if (contextPayload.name === this._crPage.utilityWorldName)
       worldName = 'utility';
     const context = new dom.FrameExecutionContext(delegate, frame, worldName);
     if (worldName)
@@ -1055,7 +1057,7 @@ class FrameSession {
   }
 
   async _evaluateOnNewDocument(initScript: InitScript, world: types.World, runImmediately?: boolean): Promise<void> {
-    const worldName = world === 'utility' ? UTILITY_WORLD_NAME : undefined;
+    const worldName = world === 'utility' ? this._crPage.utilityWorldName : undefined;
     const { identifier } = await this._client.send('Page.addScriptToEvaluateOnNewDocument', { source: initScript.source, worldName, runImmediately });
     if (!initScript.internal)
       this._evaluateOnNewDocumentIdentifiers.push(identifier);
@@ -1068,7 +1070,7 @@ class FrameSession {
   }
 
   async exposePlaywrightBinding() {
-    await this._client.send('Runtime.addBinding', { name: kPlaywrightBinding });
+    await this._client.send('Runtime.addBinding', { name: PageBinding.kBindingName });
   }
 
   async _getContentFrame(handle: dom.ElementHandle): Promise<frames.Frame | null> {
