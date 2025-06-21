@@ -19,7 +19,7 @@ import path from 'path';
 import url from 'url';
 import util from 'util';
 
-import { parseStackFrame, sanitizeForFilePath, calculateSha1, isRegExp, isString, stringifyStackFrames } from 'playwright-core/lib/utils';
+import { parseStackFrame, sanitizeForFilePath, calculateSha1, isRegExp, isString, stringifyStackFrames, escapeWithQuotes } from 'playwright-core/lib/utils';
 import { colors, debug, mime, minimatch } from 'playwright-core/lib/utilsBundle';
 
 import type { Location } from './../types/testReporter';
@@ -147,7 +147,7 @@ export function createTitleMatcher(patterns: RegExp | RegExp[]): Matcher {
   };
 }
 
-export function mergeObjects<A extends object, B extends object, C extends object>(a: A | undefined | void, b: B | undefined | void, c: B | undefined | void): A & B & C {
+export function mergeObjects<A extends object, B extends object, C extends object>(a: A | undefined | void, b: B | undefined | void, c: C | undefined | void): A & B & C {
   const result = { ...a } as any;
   for (const x of [b, c].filter(Boolean)) {
     for (const [name, value] of Object.entries(x as any)) {
@@ -418,4 +418,24 @@ export async function removeDirAndLogToConsole(dir: string) {
 export const ansiRegex = new RegExp('([\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~])))', 'g');
 export function stripAnsiEscapes(str: string): string {
   return str.replace(ansiRegex, '');
+}
+
+export type TestStepCategory = 'expect' | 'fixture' | 'hook' | 'pw:api' | 'test.step' | 'test.attach';
+
+export function stepTitle(category: TestStepCategory, title: string): string {
+  switch (category) {
+    case 'fixture':
+      return `Fixture ${escapeWithQuotes(title, '"')}`;
+    case 'expect':
+      return `Expect ${escapeWithQuotes(title, '"')}`;
+    case 'test.step':
+      return title;
+    case 'test.attach':
+      return `Attach ${escapeWithQuotes(title, '"')}`;
+    case 'hook':
+    case 'pw:api':
+      return title;
+    default:
+      return `[${category}] ${title}`;
+  }
 }

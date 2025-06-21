@@ -20,6 +20,7 @@ import http from 'http';
 import fs from 'fs';
 import { getUserAgent } from '../../../packages/playwright-core/lib/server/utils/userAgent';
 import { suppressCertificateWarning } from '../../config/utils';
+import type { Frame } from '../../../packages/playwright-core/lib/server/frames';
 
 test.skip(({ mode }) => mode === 'service2');
 
@@ -31,6 +32,23 @@ test('should connect to an existing cdp session', async ({ browserType, mode }, 
   try {
     const cdpBrowser = await browserType.connectOverCDP({
       endpointURL: `http://127.0.0.1:${port}/`,
+    });
+    const contexts = cdpBrowser.contexts();
+    expect(contexts.length).toBe(1);
+    await cdpBrowser.close();
+  } finally {
+    await browserServer.close();
+  }
+});
+
+test('should connect to an existing cdp session with verbose path', async ({ browserType, mode }, testInfo) => {
+  const port = 9339 + testInfo.workerIndex;
+  const browserServer = await browserType.launch({
+    args: ['--remote-debugging-port=' + port]
+  });
+  try {
+    const cdpBrowser = await browserType.connectOverCDP({
+      endpointURL: `http://127.0.0.1:${port}/json/version/abcdefg`,
     });
     const contexts = cdpBrowser.contexts();
     expect(contexts.length).toBe(1);
@@ -536,4 +554,32 @@ test('should print custom ws close error', async ({ browserType, server }) => {
   });
   const error = await browserType.connectOverCDP(`ws://localhost:${server.PORT}/ws`).catch(e => e);
   expect(error.message).toContain(`Browser logs:\n\nOh my!\n`);
+});
+
+test('should not reuse utility worlds between two clients', async ({ browserType, toImpl }, testInfo) => {
+  const port = 9339 + testInfo.workerIndex;
+  const browserServer = await browserType.launch({
+    args: ['--remote-debugging-port=' + port]
+  });
+  try {
+    const browser1 = await browserType.connectOverCDP(`http://127.0.0.1:${port}/`);
+    const context1 = browser1.contexts()[0];
+    expect(context1.pages().length).toBe(0);
+    const page1 = await context1.newPage();
+    const frameImpl1 = toImpl(page1.mainFrame()) as Frame;
+    await frameImpl1.evaluateExpression('window.foo = 42', { world: 'utility' });
+
+    const browser2 = await browserType.connectOverCDP(`http://127.0.0.1:${port}/`);
+    const context2 = browser2.contexts()[0];
+    const page2 = context2.pages()[0];
+    const frameImpl2 = toImpl(page2.mainFrame()) as Frame;
+    const result = await frameImpl2.evaluateExpression('window.foo', { world: 'utility' });
+
+    await browser1.close();
+    await browser2.close();
+
+    expect(result).toBeUndefined();
+  } finally {
+    await browserServer.close();
+  }
 });

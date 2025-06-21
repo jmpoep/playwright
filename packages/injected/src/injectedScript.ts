@@ -32,7 +32,7 @@ import { elementMatchesText, elementText, getElementLabels } from './selectorUti
 import { createVueEngine } from './vueSelectorEngine';
 import { XPathEngine } from './xpathSelectorEngine';
 import { ConsoleAPI } from './consoleApi';
-import { ensureUtilityScript } from './utilityScript';
+import { UtilityScript } from './utilityScript';
 
 import type { AriaTemplateNode } from '@isomorphic/ariaSnapshot';
 import type { CSSComplexSelectorList } from '@isomorphic/cssParser';
@@ -66,13 +66,12 @@ interface WebKitLegacyDeviceMotionEvent extends DeviceMotionEvent {
 }
 
 export type InjectedScriptOptions = {
-  isUnderTest?: boolean;
+  isUnderTest: boolean;
   sdkLanguage: Language;
   // For strict error and codegen
   testIdAttributeName: string;
   stableRafCount: number;
   browserName: string;
-  inputFileRoleTextbox: boolean;
   customEngines: { name: string, source: string }[];
 };
 
@@ -108,6 +107,7 @@ export class InjectedScript {
     isInsideScope,
     normalizeWhiteSpace,
     parseAriaSnapshot,
+    // Builtins protect injected code from clock emulation.
     builtins: null as unknown as Builtins,
   };
 
@@ -123,11 +123,10 @@ export class InjectedScript {
   constructor(window: Window & typeof globalThis, options: InjectedScriptOptions) {
     this.window = window;
     this.document = window.document;
+    this.isUnderTest = options.isUnderTest;
     // Make sure builtins are created from "window". This is important for InjectedScript instantiated
     // inside a trace viewer snapshot, where "window" differs from "globalThis".
-    const utilityScript = ensureUtilityScript(window);
-    this.isUnderTest = options.isUnderTest ?? utilityScript.isUnderTest;
-    this.utils.builtins = utilityScript.builtins;
+    this.utils.builtins = new UtilityScript(window, options.isUnderTest).builtins;
     this._sdkLanguage = options.sdkLanguage;
     this._testIdAttributeNameForStrictErrorAndConsoleCodegen = options.testIdAttributeName;
     this._evaluator = new SelectorEvaluatorImpl();
@@ -235,7 +234,7 @@ export class InjectedScript {
 
     this._stableRafCount = options.stableRafCount;
     this._browserName = options.browserName;
-    setGlobalOptions({ browserNameForWorkarounds: options.browserName, inputFileRoleTextbox: options.inputFileRoleTextbox });
+    setGlobalOptions({ browserNameForWorkarounds: options.browserName });
 
     this._setupGlobalListenersRemovalDetection();
     this._setupHitTargetInterceptors();
@@ -564,7 +563,7 @@ export class InjectedScript {
       observer.observe(element);
       // Firefox doesn't call IntersectionObserver callback unless
       // there are rafs.
-      requestAnimationFrame(() => {});
+      this.utils.builtins.requestAnimationFrame(() => {});
     });
   }
 
@@ -645,7 +644,7 @@ export class InjectedScript {
         return 'error:notconnected';
 
       // Drop frames that are shorter than 16ms - WebKit Win bug.
-      const time = performance.now();
+      const time = this.utils.builtins.performance.now();
       if (this._stableRafCount > 1 && time - lastTime < 15)
         return continuePolling;
       lastTime = time;
@@ -673,12 +672,12 @@ export class InjectedScript {
         if (success !== continuePolling)
           fulfill(success);
         else
-          requestAnimationFrame(raf);
+          this.utils.builtins.requestAnimationFrame(raf);
       } catch (e) {
         reject(e);
       }
     };
-    requestAnimationFrame(raf);
+    this.utils.builtins.requestAnimationFrame(raf);
 
     return result;
   }
@@ -1340,6 +1339,16 @@ export class InjectedScript {
       // expect(locator).not.toBeInViewport() passes when there is no element.
       if (options.isNot && options.expression === 'to.be.in.viewport')
         return { matches: false };
+      if (options.expression === 'to.have.title' && options?.expectedText?.[0]) {
+        const matcher = new ExpectedTextMatcher(options.expectedText[0]);
+        const received = this.document.title;
+        return { received, matches: matcher.matches(received) };
+      }
+      if (options.expression === 'to.have.url' && options?.expectedText?.[0]) {
+        const matcher = new ExpectedTextMatcher(options.expectedText[0]);
+        const received = this.document.location.href;
+        return { received, matches: matcher.matches(received) };
+      }
       // When none of the above applies, expect does not match.
       return { matches: options.isNot, missingReceived: true };
     }
@@ -1489,10 +1498,6 @@ export class InjectedScript {
         received = getElementAccessibleErrorMessage(element);
       } else if (expression === 'to.have.role') {
         received = getAriaRole(element) || '';
-      } else if (expression === 'to.have.title') {
-        received = this.document.title;
-      } else if (expression === 'to.have.url') {
-        received = this.document.location.href;
       } else if (expression === 'to.have.value') {
         element = this.retarget(element, 'follow-label')!;
         if (element.nodeName !== 'INPUT' && element.nodeName !== 'TEXTAREA' && element.nodeName !== 'SELECT')

@@ -19,7 +19,7 @@ import os from 'os';
 import path from 'path';
 
 import { Snapshotter } from './snapshotter';
-import { methodMetainfo } from '../../../protocol/debug';
+import { methodMetainfo } from '../../../utils/isomorphic/protocolMetainfo';
 import { assert } from '../../../utils/isomorphic/assert';
 import { monotonicTime } from '../../../utils/isomorphic/time';
 import { eventsHelper  } from '../../utils/eventsHelper';
@@ -109,7 +109,7 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       platform: process.platform,
       wallTime: 0,
       monotonicTime: 0,
-      sdkLanguage: context.attribution.playwright.options.sdkLanguage,
+      sdkLanguage: this._sdkLanguage(),
       testIdAttributeName,
       contextId: context.guid,
     };
@@ -122,11 +122,15 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     }
   }
 
+  private _sdkLanguage() {
+    return this._context instanceof BrowserContext ? this._context._browser.sdkLanguage() : this._context.attribution.playwright.options.sdkLanguage;
+  }
+
   async resetForReuse() {
     // Discard previous chunk if any and ignore any errors there.
     await this.stopChunk({ mode: 'discard' }).catch(() => {});
     await this.stop();
-    this._snapshotter?.resetForReuse();
+    await this._snapshotter?.resetForReuse();
   }
 
   async start(options: TracerOptions) {
@@ -136,7 +140,7 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       throw new Error('Tracing has been already started');
 
     // Re-write for testing.
-    this._contextCreatedEvent.sdkLanguage = this._context.attribution.playwright.options.sdkLanguage;
+    this._contextCreatedEvent.sdkLanguage = this._sdkLanguage();
 
     // TODO: passing the same name for two contexts makes them write into a single file
     // and conflict.
@@ -650,10 +654,7 @@ function createBeforeActionTraceEvent(metadata: CallMetadata, parentId?: string)
     type: 'before',
     callId: metadata.id,
     startTime: metadata.startTime,
-    // This will disappear for action trace events, their titles will be
-    // built based on the protocol metainfo. If I don't do this now,
-    // trace ill get frame.click instead of page.click in trace viewer.
-    title: metadata.apiName,
+    title: metadata.title,
     class: metadata.type,
     method: metadata.method,
     params: metadata.params,
