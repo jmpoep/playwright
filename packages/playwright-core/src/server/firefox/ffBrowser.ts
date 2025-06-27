@@ -19,11 +19,10 @@ import { assert } from '../../utils';
 import { Browser } from '../browser';
 import { BrowserContext, verifyGeolocation } from '../browserContext';
 import { TargetClosedError } from '../errors';
-import { kPlaywrightBinding } from '../javascript';
 import * as network from '../network';
-import { kUtilityInitScript } from '../page';
 import { ConnectionEvents, FFConnection  } from './ffConnection';
 import { FFPage } from './ffPage';
+import { PageBinding } from '../page';
 
 import type { BrowserOptions } from '../browser';
 import type { SdkObject } from '../instrumentation';
@@ -218,13 +217,13 @@ export class FFBrowserContext extends BrowserContext {
     if (this._options.timezoneId)
       promises.push(this._browser.session.send('Browser.setTimezoneOverride', { browserContextId, timezoneId: this._options.timezoneId }));
     if (this._options.extraHTTPHeaders || this._options.locale)
-      promises.push(this.setExtraHTTPHeaders(this._options.extraHTTPHeaders || []));
+      promises.push(this.doUpdateExtraHTTPHeaders());
     if (this._options.httpCredentials)
       promises.push(this.setHTTPCredentials(this._options.httpCredentials));
     if (this._options.geolocation)
       promises.push(this.setGeolocation(this._options.geolocation));
     if (this._options.offline)
-      promises.push(this.setOffline(this._options.offline));
+      promises.push(this.doUpdateOffline());
     if (this._options.colorScheme !== 'no-override') {
       promises.push(this._browser.session.send('Browser.setColorScheme', {
         browserContextId,
@@ -298,18 +297,35 @@ export class FFBrowserContext extends BrowserContext {
   async doGetCookies(urls: string[]): Promise<channels.NetworkCookie[]> {
     const { cookies } = await this._browser.session.send('Browser.getCookies', { browserContextId: this._browserContextId });
     return network.filterCookies(cookies.map(c => {
-      const copy: any = { ... c };
-      delete copy.size;
-      delete copy.session;
-      return copy as channels.NetworkCookie;
+      const { name, value, domain, path, expires, httpOnly, secure, sameSite } = c;
+      return {
+        name,
+        value,
+        domain,
+        path,
+        expires,
+        httpOnly,
+        secure,
+        sameSite,
+      };
     }), urls);
   }
 
   async addCookies(cookies: channels.SetNetworkCookie[]) {
-    const cc = network.rewriteCookies(cookies).map(c => ({
-      ...c,
-      expires: c.expires === -1 ? undefined : c.expires,
-    }));
+    const cc = network.rewriteCookies(cookies).map(c => {
+      const { name, value, url, domain, path, expires, httpOnly, secure, sameSite } = c;
+      return {
+        name,
+        value,
+        url,
+        domain,
+        path,
+        expires: expires === -1 ? undefined : expires,
+        httpOnly,
+        secure,
+        sameSite
+      };
+    });
     await this._browser.session.send('Browser.setCookies', { browserContextId: this._browserContextId, cookies: cc });
   }
 
@@ -343,9 +359,8 @@ export class FFBrowserContext extends BrowserContext {
     await this._browser.session.send('Browser.setGeolocationOverride', { browserContextId: this._browserContextId, geolocation: geolocation || null });
   }
 
-  async setExtraHTTPHeaders(headers: types.HeadersArray): Promise<void> {
-    this._options.extraHTTPHeaders = headers;
-    let allHeaders = this._options.extraHTTPHeaders;
+  async doUpdateExtraHTTPHeaders(): Promise<void> {
+    let allHeaders = this._options.extraHTTPHeaders || [];
     if (this._options.locale)
       allHeaders = network.mergeHeaders([allHeaders, network.singleHeader('Accept-Language', this._options.locale)]);
     await this._browser.session.send('Browser.setExtraHTTPHeaders', { browserContextId: this._browserContextId, headers: allHeaders });
@@ -355,9 +370,8 @@ export class FFBrowserContext extends BrowserContext {
     await this._browser.session.send('Browser.setUserAgentOverride', { browserContextId: this._browserContextId, userAgent: userAgent || null });
   }
 
-  async setOffline(offline: boolean): Promise<void> {
-    this._options.offline = offline;
-    await this._browser.session.send('Browser.setOnlineOverride', { browserContextId: this._browserContextId, override: offline ? 'offline' : 'online' });
+  async doUpdateOffline(): Promise<void> {
+    await this._browser.session.send('Browser.setOnlineOverride', { browserContextId: this._browserContextId, override: this._options.offline ? 'offline' : 'online' });
   }
 
   async doSetHTTPCredentials(httpCredentials?: types.Credentials): Promise<void> {
@@ -374,7 +388,7 @@ export class FFBrowserContext extends BrowserContext {
     await this._updateInitScripts();
   }
 
-  async doRemoveNonInternalInitScripts() {
+  async doRemoveInitScripts(initScripts: InitScript[]) {
     await this._updateInitScripts();
   }
 
@@ -383,18 +397,18 @@ export class FFBrowserContext extends BrowserContext {
     if (this.bindingsInitScript)
       bindingScripts.unshift(this.bindingsInitScript.source);
     const initScripts = this.initScripts.map(script => script.source);
-    await this._browser.session.send('Browser.setInitScripts', { browserContextId: this._browserContextId, scripts: [kUtilityInitScript.source, ...bindingScripts, ...initScripts].map(script => ({ script })) });
+    await this._browser.session.send('Browser.setInitScripts', { browserContextId: this._browserContextId, scripts: [...bindingScripts, ...initScripts].map(script => ({ script })) });
   }
 
   async doUpdateRequestInterception(): Promise<void> {
     await Promise.all([
-      this._browser.session.send('Browser.setRequestInterception', { browserContextId: this._browserContextId, enabled: !!this._requestInterceptor }),
-      this._browser.session.send('Browser.setCacheDisabled', { browserContextId: this._browserContextId, cacheDisabled: !!this._requestInterceptor }),
+      this._browser.session.send('Browser.setRequestInterception', { browserContextId: this._browserContextId, enabled: this.requestInterceptors.length > 0 }),
+      this._browser.session.send('Browser.setCacheDisabled', { browserContextId: this._browserContextId, cacheDisabled: this.requestInterceptors.length > 0 }),
     ]);
   }
 
   override async doExposePlaywrightBinding() {
-    this._browser.session.send('Browser.addBinding', { browserContextId: this._browserContextId, name: kPlaywrightBinding, script: '' });
+    this._browser.session.send('Browser.addBinding', { browserContextId: this._browserContextId, name: PageBinding.kBindingName, script: '' });
   }
 
   onClosePersistent() {}

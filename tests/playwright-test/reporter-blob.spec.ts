@@ -709,7 +709,10 @@ test('generate html with attachment urls', async ({ runInlineTest, mergeReports,
   // Check that trace loads.
   await page.locator('.test-file-test').filter({ hasText: /failing 1/ }).getByRole('link', { name: 'View Trace' }).click();
   await expect(page).toHaveTitle('Playwright Trace Viewer');
-  await expect(page.getByTestId('actions-tree').locator('div').filter({ hasText: /^expect\.toBe$/ })).toBeVisible();
+  await expect(page.getByTestId('actions-tree')).toMatchAriaSnapshot(`
+    - tree:
+      - treeitem /Expect "toBe" \\d+[hmsp]+/ [selected]
+  `);
 });
 
 test('resource names should not clash between runs', async ({ runInlineTest, showReport, mergeReports, page }) => {
@@ -1207,15 +1210,15 @@ test('preserve steps in html report', async ({ runInlineTest, mergeReports, show
 
   await page.getByText('Before Hooks').click();
   await page.getByText('beforeAll hook').click();
-  await expect(page.getByText('expect.toBe')).toBeVisible();
+  await expect(page.getByText('Expect "toBe"')).toBeVisible();
   // Collapse hooks.
   await page.getByText('Before Hooks').click();
-  await expect(page.getByText('expect.toBe')).not.toBeVisible();
+  await expect(page.getByText('Expect "toBe"')).not.toBeVisible();
 
   // Check that 'my step' location is relative.
   await expect(page.getByText('— tests/a.test.js:7')).toBeVisible();
   await page.getByText('my step').click();
-  await expect(page.getByText('expect.toBe')).toBeVisible();
+  await expect(page.getByText('Expect "toBe"')).toBeVisible();
 });
 
 test('support fileName option', async ({ runInlineTest, mergeReports }) => {
@@ -1500,6 +1503,39 @@ test('merge-reports should throw if report version is from the future', async ({
   expect(exitCode).toBe(1);
   expect(output).toContain(`Error: Blob report report-2.zip was created with a newer version of Playwright.`);
 
+});
+
+test('merge-reports should merge old attachments (pre-1.53)', async ({ runInlineTest, mergeReports }) => {
+  const reportDir = test.info().outputPath('blob-report');
+
+  const files = {
+    'playwright.config.ts': `
+      module.exports = {
+        reporter: [['blob']]
+      };
+    `,
+    'tests/a.test.js': `
+      import { test, expect } from '@playwright/test';
+      test('test 1', async ({}) => {});
+    `,
+    'merge.config.ts': `module.exports = {
+      testDir: 'mergeRoot',
+     };`,
+  };
+
+  await runInlineTest(files);
+  const reportFiles = await fs.promises.readdir(reportDir);
+  expect(reportFiles).toEqual(['report.zip']);
+
+  await fs.promises.copyFile(path.join(__dirname, '../assets/blob-1.52.zip'), path.join(reportDir, 'blob-1.42.zip'));
+
+  const { exitCode } = await mergeReports(reportDir, { 'PLAYWRIGHT_HTML_OPEN': 'never' }, { additionalArgs: ['--reporter', 'html', '--config', 'merge.config.ts'] });
+  expect(exitCode).toBe(0);
+
+  const assets = await fs.promises.readdir(path.join(test.info().outputPath('playwright-report'), 'data'));
+  expect(new Set(assets)).toEqual(new Set([
+    '4b6deb4234e5c2dc92efc6e604624e9481e8ae57.png', // screenshot
+  ]));
 });
 
 test('should merge blob reports with same name', async ({ runInlineTest, mergeReports, showReport, page }) => {

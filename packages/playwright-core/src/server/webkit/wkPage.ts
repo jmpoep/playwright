@@ -30,8 +30,7 @@ import * as dom from '../dom';
 import { TargetClosedError } from '../errors';
 import { helper } from '../helper';
 import * as network from '../network';
-import { kPlaywrightBinding } from '../javascript';
-import { Page } from '../page';
+import { Page, PageBinding } from '../page';
 import { getAccessibilityTree } from './wkAccessibility';
 import { WKSession } from './wkConnection';
 import { createHandle, WKExecutionContext } from './wkExecutionContext';
@@ -182,7 +181,7 @@ export class WKPage implements PageDelegate {
       this._workers.initializeSession(session)
     ];
     if (this._page.browserContext.needsPlaywrightBinding())
-      promises.push(session.send('Runtime.addBinding', { name: kPlaywrightBinding }));
+      promises.push(session.send('Runtime.addBinding', { name: PageBinding.kBindingName }));
     if (this._page.needsRequestInterception()) {
       promises.push(session.send('Network.setInterceptionEnabled', { enabled: true }));
       promises.push(session.send('Network.setResourceCachingDisabled', { disabled: true }));
@@ -594,7 +593,7 @@ export class WKPage implements PageDelegate {
   }
 
   _onDialog(event: Protocol.Dialog.javascriptDialogOpeningPayload) {
-    this._page.emitOnContext(BrowserContext.Events.Dialog, new dialog.Dialog(
+    this._page.browserContext.dialogManager.dialogDidOpen(new dialog.Dialog(
         this._page,
         event.type as dialog.DialogType,
         event.message,
@@ -769,12 +768,12 @@ export class WKPage implements PageDelegate {
     await this._updateBootstrapScript();
   }
 
-  async removeNonInternalInitScripts() {
+  async removeInitScripts(initScripts: InitScript[]): Promise<void> {
     await this._updateBootstrapScript();
   }
 
   async exposePlaywrightBinding() {
-    await this._updateState('Runtime.addBinding', { name: kPlaywrightBinding });
+    await this._updateState('Runtime.addBinding', { name: PageBinding.kBindingName });
   }
 
   private _calculateBootstrapScript(): string {
@@ -870,7 +869,7 @@ export class WKPage implements PageDelegate {
     const omitDeviceScaleFactor = scale === 'css';
     this.validateScreenshotDimension(rect.width, omitDeviceScaleFactor);
     this.validateScreenshotDimension(rect.height, omitDeviceScaleFactor);
-    const result = await this._session.send('Page.snapshotRect', { ...rect, coordinateSystem: documentRect ? 'Page' : 'Viewport', omitDeviceScaleFactor });
+    const result = await progress.race(this._session.send('Page.snapshotRect', { ...rect, coordinateSystem: documentRect ? 'Page' : 'Viewport', omitDeviceScaleFactor }));
     const prefix = 'data:image/png;base64,';
     let buffer: Buffer = Buffer.from(result.dataURL.substr(prefix.length), 'base64');
     if (format === 'jpeg')
@@ -995,7 +994,7 @@ export class WKPage implements PageDelegate {
   async inputActionEpilogue(): Promise<void> {
   }
 
-  async resetForReuse(): Promise<void> {
+  async resetForReuse(progress: Progress): Promise<void> {
   }
 
   async getFrameElement(frame: frames.Frame): Promise<dom.ElementHandle> {
