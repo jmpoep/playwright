@@ -68,6 +68,7 @@ export type RemoteServerOptions = {
   inCluster?: boolean;
   url?: string;
   startStopAndRunHttp?: boolean;
+  sharedBrowser?: boolean;
 };
 
 export class RemoteServer implements PlaywrightServer {
@@ -94,18 +95,14 @@ export class RemoteServer implements PlaywrightServer {
       handleSIGHUP: true,
       logger: undefined,
     };
+    if (remoteServerOptions.sharedBrowser)
+      (launchOptions as any)._sharedBrowser = true;
     const options = {
       browserTypeName: browserType.name(),
       channel,
       launchOptions,
       ...remoteServerOptions,
     };
-    if ('bidi' === browserType.name()) {
-      if (channel.toLocaleLowerCase().includes('firefox'))
-        options.browserTypeName = '_bidiFirefox';
-      else
-        options.browserTypeName = '_bidiChromium';
-    }
     this._process = childProcess({
       command: ['node', path.join(__dirname, 'remote-server-impl.js'), JSON.stringify(options)],
     });

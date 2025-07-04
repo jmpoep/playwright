@@ -221,23 +221,6 @@ it('exposeBindingHandle should throw for multiple arguments', async ({ page }) =
   expect(error.message).toContain('exposeBindingHandle supports a single argument, 2 received');
 });
 
-it('should not result in unhandled rejection', async ({ page, isAndroid, isWebView2 }) => {
-  it.fixme(isAndroid);
-  it.skip(isWebView2, 'Page.close() is not supported in WebView2');
-
-  const closedPromise = page.waitForEvent('close');
-  await page.exposeFunction('foo', async () => {
-    await page.close();
-  });
-  await page.evaluate(() => {
-    window.builtins.setTimeout(() => (window as any).foo(), 0);
-    return undefined;
-  });
-  await closedPromise;
-  // Make a round-trip to be sure we did not throw immediately after closing.
-  expect(await page.evaluate('1 + 1').catch(e => e)).toBeInstanceOf(Error);
-});
-
 it('exposeBinding(handle) should work with element handles', async ({ page }) => {
   let cb;
   const promise = new Promise(f => cb = f);
@@ -308,42 +291,4 @@ it('should fail with busted Array.prototype.toJSON', async ({ page }) => {
   await expect(() => page.evaluate(`add(5, 6)`)).rejects.toThrowError('serializedArgs is not an array. This can happen when Array.prototype.toJSON is defined incorrectly');
 
   expect.soft(await page.evaluate(() => ([] as any).toJSON())).toBe('"[]"');
-});
-
-it('should work with overridden eval', {
-  annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/34628' },
-}, async ({ page, server }) => {
-  await page.exposeFunction('add', (a, b) => a + b);
-
-  server.setRoute('/page', (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.end(`
-      <script>
-        window.eval = () => 42;
-      </script>
-    `);
-  });
-  await page.goto(server.PREFIX + '/page');
-  expect(await page.evaluate(async () => {
-    return { value: await (window as any)['add'](5, 6) };
-  })).toEqual({ value: 11 });
-});
-
-it('should work with deleted Map', {
-  annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/34443' },
-}, async ({ page, server }) => {
-  await page.exposeFunction('add', (a, b) => a + b);
-
-  server.setRoute('/page', (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.end(`
-      <script>
-        delete window.Map;
-      </script>
-    `);
-  });
-  await page.goto(server.PREFIX + '/page');
-  expect(await page.evaluate(async () => {
-    return { value: await (window as any)['add'](5, 6) };
-  })).toEqual({ value: 11 });
 });

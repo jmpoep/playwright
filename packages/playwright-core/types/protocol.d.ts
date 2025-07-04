@@ -1045,12 +1045,24 @@ registrations being ignored.
        */
       propertyValue?: string;
     }
+    export type UserReidentificationIssueType = "BlockedFrameNavigation"|"BlockedSubresource";
+    /**
+     * This issue warns about uses of APIs that may be considered misuse to
+re-identify users.
+     */
+    export interface UserReidentificationIssueDetails {
+      type: UserReidentificationIssueType;
+      /**
+       * Applies to BlockedFrameNavigation and BlockedSubresource issue types.
+       */
+      request?: AffectedRequest;
+    }
     /**
      * A unique identifier for the type of issue. Each type may use one of the
 optional fields in InspectorIssueDetails to convey more specific
 information about the kind of issue.
      */
-    export type InspectorIssueCode = "CookieIssue"|"MixedContentIssue"|"BlockedByResponseIssue"|"HeavyAdIssue"|"ContentSecurityPolicyIssue"|"SharedArrayBufferIssue"|"LowTextContrastIssue"|"CorsIssue"|"AttributionReportingIssue"|"QuirksModeIssue"|"PartitioningBlobURLIssue"|"NavigatorUserAgentIssue"|"GenericIssue"|"DeprecationIssue"|"ClientHintIssue"|"FederatedAuthRequestIssue"|"BounceTrackingIssue"|"CookieDeprecationMetadataIssue"|"StylesheetLoadingIssue"|"FederatedAuthUserInfoRequestIssue"|"PropertyRuleIssue"|"SharedDictionaryIssue"|"SelectElementAccessibilityIssue"|"SRIMessageSignatureIssue";
+    export type InspectorIssueCode = "CookieIssue"|"MixedContentIssue"|"BlockedByResponseIssue"|"HeavyAdIssue"|"ContentSecurityPolicyIssue"|"SharedArrayBufferIssue"|"LowTextContrastIssue"|"CorsIssue"|"AttributionReportingIssue"|"QuirksModeIssue"|"PartitioningBlobURLIssue"|"NavigatorUserAgentIssue"|"GenericIssue"|"DeprecationIssue"|"ClientHintIssue"|"FederatedAuthRequestIssue"|"BounceTrackingIssue"|"CookieDeprecationMetadataIssue"|"StylesheetLoadingIssue"|"FederatedAuthUserInfoRequestIssue"|"PropertyRuleIssue"|"SharedDictionaryIssue"|"SelectElementAccessibilityIssue"|"SRIMessageSignatureIssue"|"UserReidentificationIssue";
     /**
      * This struct holds a list of optional fields with additional information
 specific to the kind of issue. When adding a new issue code, please also
@@ -1081,6 +1093,7 @@ add a new optional field to this type.
       sharedDictionaryIssueDetails?: SharedDictionaryIssueDetails;
       selectElementAccessibilityIssueDetails?: SelectElementAccessibilityIssueDetails;
       sriMessageSignatureIssueDetails?: SRIMessageSignatureIssueDetails;
+      userReidentificationIssueDetails?: UserReidentificationIssueDetails;
     }
     /**
      * A unique id for a DevTools inspector issue. Allows other entities (e.g.
@@ -1714,6 +1727,12 @@ Note that userVisibleOnly = true is the only currently supported type.
        * Download status.
        */
       state: "inProgress"|"completed"|"canceled";
+      /**
+       * If download is "completed", provides the path of the downloaded file.
+Depending on the platform, it is not guaranteed to be set, nor the file
+is guaranteed to exist.
+       */
+      filePath?: string;
     }
     
     /**
@@ -3879,7 +3898,7 @@ front-end.
     /**
      * Pseudo element type.
      */
-    export type PseudoType = "first-line"|"first-letter"|"checkmark"|"before"|"after"|"picker-icon"|"marker"|"backdrop"|"column"|"selection"|"search-text"|"target-text"|"spelling-error"|"grammar-error"|"highlight"|"first-line-inherited"|"scroll-marker"|"scroll-marker-group"|"scroll-button"|"scrollbar"|"scrollbar-thumb"|"scrollbar-button"|"scrollbar-track"|"scrollbar-track-piece"|"scrollbar-corner"|"resizer"|"input-list-button"|"view-transition"|"view-transition-group"|"view-transition-image-pair"|"view-transition-old"|"view-transition-new"|"placeholder"|"file-selector-button"|"details-content"|"picker";
+    export type PseudoType = "first-line"|"first-letter"|"checkmark"|"before"|"after"|"picker-icon"|"marker"|"backdrop"|"column"|"selection"|"search-text"|"target-text"|"spelling-error"|"grammar-error"|"highlight"|"first-line-inherited"|"scroll-marker"|"scroll-marker-group"|"scroll-button"|"scrollbar"|"scrollbar-thumb"|"scrollbar-button"|"scrollbar-track"|"scrollbar-track-piece"|"scrollbar-corner"|"resizer"|"input-list-button"|"view-transition"|"view-transition-group"|"view-transition-image-pair"|"view-transition-group-children"|"view-transition-old"|"view-transition-new"|"placeholder"|"file-selector-button"|"details-content"|"picker"|"permission-icon";
     /**
      * Shadow root type.
      */
@@ -4887,7 +4906,7 @@ appear on top of all other content.
       /**
        * Type of relation to get.
        */
-      relation: "PopoverTarget"|"InterestTarget";
+      relation: "PopoverTarget"|"InterestTarget"|"CommandFor";
     }
     export type getElementByRelationReturnValue = {
       /**
@@ -6263,6 +6282,11 @@ Missing optional values will be filled in by the target with what it would norma
       mobile: boolean;
       bitness?: string;
       wow64?: boolean;
+      /**
+       * Used to specify User Agent form-factor values.
+See https://wicg.github.io/ua-client-hints/#sec-ch-ua-form-factors
+       */
+      formFactors?: string[];
     }
     /**
      * Used to specify sensor types to emulate.
@@ -6561,6 +6585,14 @@ physiologically accurate emulations for medically recognized color vision defici
     export type setEmulatedVisionDeficiencyReturnValue = {
     }
     /**
+     * Emulates the given OS text scale.
+     */
+    export type setEmulatedOSTextScaleParameters = {
+      scale?: number;
+    }
+    export type setEmulatedOSTextScaleReturnValue = {
+    }
+    /**
      * Overrides the Geolocation Position or Error. Omitting latitude, longitude or
 accuracy emulates position unavailable.
      */
@@ -6640,7 +6672,8 @@ platform-provided telemetry data.
     export type setPressureSourceOverrideEnabledReturnValue = {
     }
     /**
-     * Provides a given pressure state that will be processed and eventually be
+     * TODO: OBSOLETE: To remove when setPressureDataOverride is merged.
+Provides a given pressure state that will be processed and eventually be
 delivered to PressureObserver users. |source| must have been previously
 overridden by setPressureSourceOverrideEnabled.
      */
@@ -6649,6 +6682,18 @@ overridden by setPressureSourceOverrideEnabled.
       state: PressureState;
     }
     export type setPressureStateOverrideReturnValue = {
+    }
+    /**
+     * Provides a given pressure data set that will be processed and eventually be
+delivered to PressureObserver users. |source| must have been previously
+overridden by setPressureSourceOverrideEnabled.
+     */
+    export type setPressureDataOverrideParameters = {
+      source: PressureSource;
+      state: PressureState;
+      ownContributionEstimate?: number;
+    }
+    export type setPressureDataOverrideReturnValue = {
     }
     /**
      * Overrides the Idle state.
@@ -8586,7 +8631,7 @@ file, data and other requests and responses, their headers, bodies, timing, etc.
     /**
      * Resource type as it was perceived by the rendering engine.
      */
-    export type ResourceType = "Document"|"Stylesheet"|"Image"|"Media"|"Font"|"Script"|"TextTrack"|"XHR"|"Fetch"|"Prefetch"|"EventSource"|"WebSocket"|"Manifest"|"SignedExchange"|"Ping"|"CSPViolationReport"|"Preflight"|"Other";
+    export type ResourceType = "Document"|"Stylesheet"|"Image"|"Media"|"Font"|"Script"|"TextTrack"|"XHR"|"Fetch"|"Prefetch"|"EventSource"|"WebSocket"|"Manifest"|"SignedExchange"|"Ping"|"CSPViolationReport"|"Preflight"|"FedCM"|"Other";
     /**
      * Unique loader identifier.
      */
@@ -8909,7 +8954,7 @@ applicable or not known.
     /**
      * The reason why request was blocked.
      */
-    export type BlockedReason = "other"|"csp"|"mixed-content"|"origin"|"inspector"|"subresource-filter"|"content-type"|"coep-frame-resource-needs-coep-header"|"coop-sandboxed-iframe-cannot-navigate-to-coop-page"|"corp-not-same-origin"|"corp-not-same-origin-after-defaulted-to-same-origin-by-coep"|"corp-not-same-origin-after-defaulted-to-same-origin-by-dip"|"corp-not-same-origin-after-defaulted-to-same-origin-by-coep-and-dip"|"corp-not-same-site"|"sri-message-signature-mismatch";
+    export type BlockedReason = "other"|"csp"|"mixed-content"|"origin"|"inspector"|"integrity"|"subresource-filter"|"content-type"|"coep-frame-resource-needs-coep-header"|"coop-sandboxed-iframe-cannot-navigate-to-coop-page"|"corp-not-same-origin"|"corp-not-same-origin-after-defaulted-to-same-origin-by-coep"|"corp-not-same-origin-after-defaulted-to-same-origin-by-dip"|"corp-not-same-origin-after-defaulted-to-same-origin-by-coep-and-dip"|"corp-not-same-site"|"sri-message-signature-mismatch";
     /**
      * The reason why request was blocked.
      */
@@ -9573,6 +9618,11 @@ https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-
        */
       outerResponse: Response;
       /**
+       * Whether network response for the signed exchange was accompanied by
+extra headers.
+       */
+      hasExtraInfo: boolean;
+      /**
        * Information about the signed exchange header.
        */
       header?: SignedExchangeHeader;
@@ -9608,6 +9658,39 @@ https://wicg.github.io/webpackage/draft-yasskin-httpbis-origin-signed-exchanges-
        */
       receiveBufferSize?: number;
       dnsQueryType?: DirectSocketDnsQueryType;
+    }
+    export interface DirectUDPSocketOptions {
+      remoteAddr?: string;
+      /**
+       * Unsigned int 16.
+       */
+      remotePort?: number;
+      localAddr?: string;
+      /**
+       * Unsigned int 16.
+       */
+      localPort?: number;
+      dnsQueryType?: DirectSocketDnsQueryType;
+      /**
+       * Expected to be unsigned integer.
+       */
+      sendBufferSize?: number;
+      /**
+       * Expected to be unsigned integer.
+       */
+      receiveBufferSize?: number;
+    }
+    export interface DirectUDPMessage {
+      data: binary;
+      /**
+       * Null for connected mode.
+       */
+      remoteAddr?: string;
+      /**
+       * Null for connected mode.
+Expected to be unsigned integer.
+       */
+      remotePort?: number;
     }
     export type PrivateNetworkRequestPolicy = "Allow"|"BlockFromInsecureToMorePrivate"|"WarnFromInsecureToMorePrivate"|"PreflightBlock"|"PreflightWarn"|"PermissionBlock"|"PermissionWarn";
     export type IPAddressSpace = "Local"|"Private"|"Public"|"Unknown";
@@ -10242,16 +10325,60 @@ or were emitted for this request.
       timestamp: MonotonicTime;
     }
     /**
-     * Fired when there is an error
-when writing to tcp direct socket stream.
-For example, if user writes illegal type like string
-instead of ArrayBuffer or ArrayBufferView.
-There's no reporting for reading, because
-we cannot know errors on the other side.
+     * Fired upon direct_socket.UDPSocket creation.
      */
-    export type directTCPSocketChunkErrorPayload = {
+    export type directUDPSocketCreatedPayload = {
+      identifier: RequestId;
+      options: DirectUDPSocketOptions;
+      timestamp: MonotonicTime;
+      initiator?: Initiator;
+    }
+    /**
+     * Fired when direct_socket.UDPSocket connection is opened.
+     */
+    export type directUDPSocketOpenedPayload = {
+      identifier: RequestId;
+      localAddr: string;
+      /**
+       * Expected to be unsigned integer.
+       */
+      localPort: number;
+      timestamp: MonotonicTime;
+      remoteAddr?: string;
+      /**
+       * Expected to be unsigned integer.
+       */
+      remotePort?: number;
+    }
+    /**
+     * Fired when direct_socket.UDPSocket is aborted.
+     */
+    export type directUDPSocketAbortedPayload = {
       identifier: RequestId;
       errorMessage: string;
+      timestamp: MonotonicTime;
+    }
+    /**
+     * Fired when direct_socket.UDPSocket is closed.
+     */
+    export type directUDPSocketClosedPayload = {
+      identifier: RequestId;
+      timestamp: MonotonicTime;
+    }
+    /**
+     * Fired when message is sent to udp direct socket stream.
+     */
+    export type directUDPSocketChunkSentPayload = {
+      identifier: RequestId;
+      message: DirectUDPMessage;
+      timestamp: MonotonicTime;
+    }
+    /**
+     * Fired when message is received from udp direct socket stream.
+     */
+    export type directUDPSocketChunkReceivedPayload = {
+      identifier: RequestId;
+      message: DirectUDPMessage;
       timestamp: MonotonicTime;
     }
     /**
@@ -10682,6 +10809,10 @@ all partition key attributes match the cookie partition key attribute.
        * Longest post body size (in bytes) that would be included in requestWillBeSent notification
        */
       maxPostDataSize?: number;
+      /**
+       * Whether DirectSocket chunk send/receive events should be reported.
+       */
+      reportDirectSocketTraffic?: boolean;
     }
     export type enableReturnValue = {
     }
@@ -11068,7 +11199,7 @@ should be omitted for worker targets.
     }
     /**
      * Sets Controls for third-party cookie access
-Page reload is required before the new cookie bahavior will be observed
+Page reload is required before the new cookie behavior will be observed
      */
     export type setCookieControlsParameters = {
       /**
@@ -11932,19 +12063,39 @@ Backend then generates 'inspectNodeRequested' event upon element selection.
       explanations?: AdFrameExplanation[];
     }
     /**
-     * Identifies the bottom-most script which caused the frame to be labelled
-as an ad.
+     * Identifies the script which caused a script or frame to be labelled as an
+ad.
      */
     export interface AdScriptId {
       /**
-       * Script Id of the bottom-most script which caused the frame to be labelled
-as an ad.
+       * Script Id of the script which caused a script or frame to be labelled as
+an ad.
        */
       scriptId: Runtime.ScriptId;
       /**
-       * Id of adScriptId's debugger.
+       * Id of scriptId's debugger.
        */
       debuggerId: Runtime.UniqueDebuggerId;
+    }
+    /**
+     * Encapsulates the script ancestry and the root script filterlist rule that
+caused the frame to be labelled as an ad. Only created when `ancestryChain`
+is not empty.
+     */
+    export interface AdScriptAncestry {
+      /**
+       * A chain of `AdScriptId`s representing the ancestry of an ad script that
+led to the creation of a frame. The chain is ordered from the script
+itself (lower level) up to its root ancestor that was flagged by
+filterlist.
+       */
+      ancestryChain: AdScriptId[];
+      /**
+       * The filterlist rule that caused the root (last) script in
+`ancestryChain` to be ad-tagged. Only populated if the rule is
+available.
+       */
+      rootScriptFilterlistRule?: string;
     }
     /**
      * Indicates whether the frame is a secure context and why it is the case.
@@ -11960,7 +12111,7 @@ as an ad.
 in services/network/public/cpp/permissions_policy/permissions_policy_features.json5.
 LINT.IfChange(PermissionsPolicyFeature)
      */
-    export type PermissionsPolicyFeature = "accelerometer"|"all-screens-capture"|"ambient-light-sensor"|"attribution-reporting"|"autoplay"|"bluetooth"|"browsing-topics"|"camera"|"captured-surface-control"|"ch-dpr"|"ch-device-memory"|"ch-downlink"|"ch-ect"|"ch-prefers-color-scheme"|"ch-prefers-reduced-motion"|"ch-prefers-reduced-transparency"|"ch-rtt"|"ch-save-data"|"ch-ua"|"ch-ua-arch"|"ch-ua-bitness"|"ch-ua-high-entropy-values"|"ch-ua-platform"|"ch-ua-model"|"ch-ua-mobile"|"ch-ua-form-factors"|"ch-ua-full-version"|"ch-ua-full-version-list"|"ch-ua-platform-version"|"ch-ua-wow64"|"ch-viewport-height"|"ch-viewport-width"|"ch-width"|"clipboard-read"|"clipboard-write"|"compute-pressure"|"controlled-frame"|"cross-origin-isolated"|"deferred-fetch"|"deferred-fetch-minimal"|"device-attributes"|"digital-credentials-get"|"direct-sockets"|"direct-sockets-private"|"display-capture"|"document-domain"|"encrypted-media"|"execution-while-out-of-viewport"|"execution-while-not-rendered"|"fenced-unpartitioned-storage-read"|"focus-without-user-activation"|"fullscreen"|"frobulate"|"gamepad"|"geolocation"|"gyroscope"|"hid"|"identity-credentials-get"|"idle-detection"|"interest-cohort"|"join-ad-interest-group"|"keyboard-map"|"language-detector"|"local-fonts"|"local-network-access"|"magnetometer"|"media-playback-while-not-visible"|"microphone"|"midi"|"otp-credentials"|"payment"|"picture-in-picture"|"popins"|"private-aggregation"|"private-state-token-issuance"|"private-state-token-redemption"|"publickey-credentials-create"|"publickey-credentials-get"|"record-ad-auction-events"|"rewriter"|"run-ad-auction"|"screen-wake-lock"|"serial"|"shared-autofill"|"shared-storage"|"shared-storage-select-url"|"smart-card"|"speaker-selection"|"storage-access"|"sub-apps"|"summarizer"|"sync-xhr"|"translator"|"unload"|"usb"|"usb-unrestricted"|"vertical-scroll"|"web-app-installation"|"web-printing"|"web-share"|"window-management"|"writer"|"xr-spatial-tracking";
+    export type PermissionsPolicyFeature = "accelerometer"|"all-screens-capture"|"ambient-light-sensor"|"attribution-reporting"|"autoplay"|"bluetooth"|"browsing-topics"|"camera"|"captured-surface-control"|"ch-dpr"|"ch-device-memory"|"ch-downlink"|"ch-ect"|"ch-prefers-color-scheme"|"ch-prefers-reduced-motion"|"ch-prefers-reduced-transparency"|"ch-rtt"|"ch-save-data"|"ch-ua"|"ch-ua-arch"|"ch-ua-bitness"|"ch-ua-high-entropy-values"|"ch-ua-platform"|"ch-ua-model"|"ch-ua-mobile"|"ch-ua-form-factors"|"ch-ua-full-version"|"ch-ua-full-version-list"|"ch-ua-platform-version"|"ch-ua-wow64"|"ch-viewport-height"|"ch-viewport-width"|"ch-width"|"clipboard-read"|"clipboard-write"|"compute-pressure"|"controlled-frame"|"cross-origin-isolated"|"deferred-fetch"|"deferred-fetch-minimal"|"device-attributes"|"digital-credentials-get"|"direct-sockets"|"direct-sockets-private"|"display-capture"|"document-domain"|"encrypted-media"|"execution-while-out-of-viewport"|"execution-while-not-rendered"|"fenced-unpartitioned-storage-read"|"focus-without-user-activation"|"fullscreen"|"frobulate"|"gamepad"|"geolocation"|"gyroscope"|"hid"|"identity-credentials-get"|"idle-detection"|"interest-cohort"|"join-ad-interest-group"|"keyboard-map"|"language-detector"|"language-model"|"local-fonts"|"local-network-access"|"magnetometer"|"media-playback-while-not-visible"|"microphone"|"midi"|"on-device-speech-recognition"|"otp-credentials"|"payment"|"picture-in-picture"|"popins"|"private-aggregation"|"private-state-token-issuance"|"private-state-token-redemption"|"publickey-credentials-create"|"publickey-credentials-get"|"record-ad-auction-events"|"rewriter"|"run-ad-auction"|"screen-wake-lock"|"serial"|"shared-autofill"|"shared-storage"|"shared-storage-select-url"|"smart-card"|"speaker-selection"|"storage-access"|"sub-apps"|"summarizer"|"sync-xhr"|"translator"|"unload"|"usb"|"usb-unrestricted"|"vertical-scroll"|"web-app-installation"|"web-printing"|"web-share"|"window-management"|"writer"|"xr-spatial-tracking";
     /**
      * Reason for a permissions policy feature to be disabled.
      */
@@ -12552,10 +12703,6 @@ https://github.com/WICG/manifest-incubations/blob/gh-pages/scope_extensions-expl
       startUrl?: string;
       themeColor?: string;
     }
-    /**
-     * Enum of possible auto-response for permission / prompt dialogs.
-     */
-    export type AutoResponseMode = "none"|"autoAccept"|"autoReject"|"autoOptOut";
     /**
      * The type of a frameNavigated event.
      */
@@ -13247,17 +13394,18 @@ Only returns values if the feature flag 'WebAppEnableManifestId' is enabled
        */
       recommendedId?: string;
     }
-    export type getAdScriptAncestryIdsParameters = {
+    export type getAdScriptAncestryParameters = {
       frameId: FrameId;
     }
-    export type getAdScriptAncestryIdsReturnValue = {
+    export type getAdScriptAncestryReturnValue = {
       /**
        * The ancestry chain of ad script identifiers leading to this frame's
-creation, ordered from the most immediate script (in the frame creation
+creation, along with the root script's filterlist rule. The ancestry
+chain is ordered from the most immediate script (in the frame creation
 stack) to more distant ancestors (that created the immediately preceding
 script). Only sent if frame is labelled as an ad and ids are available.
        */
-      adScriptAncestryIds: AdScriptId[];
+      adScriptAncestry?: AdScriptAncestry;
     }
     /**
      * Returns present frame tree structure.
@@ -13929,7 +14077,7 @@ cross-process navigation.
 https://w3c.github.io/secure-payment-confirmation/#sctn-automation-set-spc-transaction-mode
      */
     export type setSPCTransactionModeParameters = {
-      mode: AutoResponseMode;
+      mode: "none"|"autoAccept"|"autoChooseToAuthAnotherWay"|"autoReject"|"autoOptOut";
     }
     export type setSPCTransactionModeReturnValue = {
     }
@@ -13938,7 +14086,7 @@ https://w3c.github.io/secure-payment-confirmation/#sctn-automation-set-spc-trans
 https://html.spec.whatwg.org/multipage/system-state.html#rph-automation
      */
     export type setRPHRegistrationModeParameters = {
-      mode: AutoResponseMode;
+      mode: "none"|"autoAccept"|"autoReject";
     }
     export type setRPHRegistrationModeReturnValue = {
     }
@@ -14742,6 +14890,11 @@ Present only for SharedStorageAccessMethods: run and selectURL.
        */
       operationName?: string;
       /**
+       * ID of the operation call.
+Present only for SharedStorageAccessMethods: run and selectURL.
+       */
+      operationId?: string;
+      /**
        * Whether or not to keep the worket alive for future run or selectURL
 calls.
 Present only for SharedStorageAccessMethods: run and selectURL.
@@ -14785,13 +14938,20 @@ Present only for SharedStorageAccessMethod: set.
        */
       ignoreIfPresent?: boolean;
       /**
-       * If the method is called on a worklet, or as part of
-a worklet script, it will have an ID for the associated worklet.
+       * A number denoting the (0-based) order of the worklet's
+creation relative to all other shared storage worklets created by
+documents using the current storage partition.
+Present only for SharedStorageAccessMethods: addModule, createWorklet.
+       */
+      workletOrdinal?: number;
+      /**
+       * Hex representation of the DevTools token used as the TargetID for the
+associated shared storage worklet.
 Present only for SharedStorageAccessMethods: addModule, createWorklet,
 run, selectURL, and any other SharedStorageAccessMethod when the
-SharedStorageAccessScope is worklet.
+SharedStorageAccessScope is sharedStorageWorklet.
        */
-      workletId?: string;
+      workletTargetId?: Target.TargetID;
       /**
        * Name of the lock to be acquired, if present.
 Optionally present only for SharedStorageAccessMethods: batchUpdate,
@@ -14863,14 +15023,6 @@ Present only for SharedStorageAccessMethod: batchUpdate.
        */
       ends: number[];
     }
-    export interface AttributionReportingTriggerSpec {
-      /**
-       * number instead of integer because not all uint32 can be represented by
-int
-       */
-      triggerData: number[];
-      eventReportWindows: AttributionReportingEventReportWindows;
-    }
     export type AttributionReportingTriggerDataMatching = "exact"|"modulus";
     export interface AttributionReportingAggregatableDebugReportingData {
       keyPiece: UnsignedInt128AsBase16;
@@ -14910,7 +15062,12 @@ int
        * duration in seconds
        */
       expiry: number;
-      triggerSpecs: AttributionReportingTriggerSpec[];
+      /**
+       * number instead of integer because not all uint32 can be represented by
+int
+       */
+      triggerData: number[];
+      eventReportWindows: AttributionReportingEventReportWindows;
       /**
        * duration in seconds
        */
@@ -14985,6 +15142,7 @@ int
     }
     export type AttributionReportingEventLevelResult = "success"|"successDroppedLowerPriority"|"internalError"|"noCapacityForAttributionDestination"|"noMatchingSources"|"deduplicated"|"excessiveAttributions"|"priorityTooLow"|"neverAttributedSource"|"excessiveReportingOrigins"|"noMatchingSourceFilterData"|"prohibitedByBrowserPolicy"|"noMatchingConfigurations"|"excessiveReports"|"falselyAttributedSource"|"reportWindowPassed"|"notRegistered"|"reportWindowNotStarted"|"noMatchingTriggerData";
     export type AttributionReportingAggregatableResult = "success"|"internalError"|"noCapacityForAttributionDestination"|"noMatchingSources"|"excessiveAttributions"|"excessiveReportingOrigins"|"noHistograms"|"insufficientBudget"|"insufficientNamedBudget"|"noMatchingSourceFilterData"|"notRegistered"|"prohibitedByBrowserPolicy"|"deduplicated"|"reportWindowPassed"|"excessiveReports";
+    export type AttributionReportingReportResult = "sent"|"prohibited"|"failedToAssemble"|"expired";
     /**
      * A single Related Website Set object.
      */
@@ -15175,6 +15333,42 @@ presence/absence depends on `type`.
        */
       params: SharedStorageAccessParams;
     }
+    /**
+     * A shared storage run or selectURL operation finished its execution.
+The following parameters are included in all events.
+     */
+    export type sharedStorageWorkletOperationExecutionFinishedPayload = {
+      /**
+       * Time that the operation finished.
+       */
+      finishedTime: Network.TimeSinceEpoch;
+      /**
+       * Time, in microseconds, from start of shared storage JS API call until
+end of operation execution in the worklet.
+       */
+      executionTime: number;
+      /**
+       * Enum value indicating the Shared Storage API method invoked.
+       */
+      method: SharedStorageAccessMethod;
+      /**
+       * ID of the operation call.
+       */
+      operationId: string;
+      /**
+       * Hex representation of the DevTools token used as the TargetID for the
+associated shared storage worklet.
+       */
+      workletTargetId: Target.TargetID;
+      /**
+       * DevTools Frame Token for the primary frame tree's root.
+       */
+      mainFrameId: Page.FrameId;
+      /**
+       * Serialization of the origin owning the Shared Storage data.
+       */
+      ownerOrigin: string;
+    }
     export type storageBucketCreatedOrUpdatedPayload = {
       bucketInfo: StorageBucketInfo;
     }
@@ -15189,6 +15383,24 @@ presence/absence depends on `type`.
       registration: AttributionReportingTriggerRegistration;
       eventLevel: AttributionReportingEventLevelResult;
       aggregatable: AttributionReportingAggregatableResult;
+    }
+    export type attributionReportingReportSentPayload = {
+      url: string;
+      body: { [key: string]: string };
+      result: AttributionReportingReportResult;
+      /**
+       * If result is `sent`, populated with net/HTTP status.
+       */
+      netError?: number;
+      netErrorName?: string;
+      httpStatusCode?: number;
+    }
+    export type attributionReportingVerboseDebugReportSentPayload = {
+      url: string;
+      body?: { [key: string]: string }[];
+      netError?: number;
+      netErrorName?: string;
+      httpStatusCode?: number;
     }
     
     /**
@@ -16372,7 +16584,7 @@ to run paused targets.
     export type MemoryDumpConfig = { [key: string]: string };
     export interface TraceConfig {
       /**
-       * Controls how the trace buffer stores data.
+       * Controls how the trace buffer stores data. The default is `recordUntilFull`.
        */
       recordMode?: "recordUntilFull"|"recordContinuously"|"recordAsMuchAsPossible"|"echoToConsole";
       /**
@@ -17780,7 +17992,7 @@ CDP events for them are emitted separately but they share
     /**
      * List of FinalStatus reasons for Prerender2.
      */
-    export type PrerenderFinalStatus = "Activated"|"Destroyed"|"LowEndDevice"|"InvalidSchemeRedirect"|"InvalidSchemeNavigation"|"NavigationRequestBlockedByCsp"|"MainFrameNavigation"|"MojoBinderPolicy"|"RendererProcessCrashed"|"RendererProcessKilled"|"Download"|"TriggerDestroyed"|"NavigationNotCommitted"|"NavigationBadHttpStatus"|"ClientCertRequested"|"NavigationRequestNetworkError"|"CancelAllHostsForTesting"|"DidFailLoad"|"Stop"|"SslCertificateError"|"LoginAuthRequested"|"UaChangeRequiresReload"|"BlockedByClient"|"AudioOutputDeviceRequested"|"MixedContent"|"TriggerBackgrounded"|"MemoryLimitExceeded"|"DataSaverEnabled"|"TriggerUrlHasEffectiveUrl"|"ActivatedBeforeStarted"|"InactivePageRestriction"|"StartFailed"|"TimeoutBackgrounded"|"CrossSiteRedirectInInitialNavigation"|"CrossSiteNavigationInInitialNavigation"|"SameSiteCrossOriginRedirectNotOptInInInitialNavigation"|"SameSiteCrossOriginNavigationNotOptInInInitialNavigation"|"ActivationNavigationParameterMismatch"|"ActivatedInBackground"|"EmbedderHostDisallowed"|"ActivationNavigationDestroyedBeforeSuccess"|"TabClosedByUserGesture"|"TabClosedWithoutUserGesture"|"PrimaryMainFrameRendererProcessCrashed"|"PrimaryMainFrameRendererProcessKilled"|"ActivationFramePolicyNotCompatible"|"PreloadingDisabled"|"BatterySaverEnabled"|"ActivatedDuringMainFrameNavigation"|"PreloadingUnsupportedByWebContents"|"CrossSiteRedirectInMainFrameNavigation"|"CrossSiteNavigationInMainFrameNavigation"|"SameSiteCrossOriginRedirectNotOptInInMainFrameNavigation"|"SameSiteCrossOriginNavigationNotOptInInMainFrameNavigation"|"MemoryPressureOnTrigger"|"MemoryPressureAfterTriggered"|"PrerenderingDisabledByDevTools"|"SpeculationRuleRemoved"|"ActivatedWithAuxiliaryBrowsingContexts"|"MaxNumOfRunningEagerPrerendersExceeded"|"MaxNumOfRunningNonEagerPrerendersExceeded"|"MaxNumOfRunningEmbedderPrerendersExceeded"|"PrerenderingUrlHasEffectiveUrl"|"RedirectedPrerenderingUrlHasEffectiveUrl"|"ActivationUrlHasEffectiveUrl"|"JavaScriptInterfaceAdded"|"JavaScriptInterfaceRemoved"|"AllPrerenderingCanceled"|"WindowClosed"|"SlowNetwork"|"OtherPrerenderedPageActivated"|"V8OptimizerDisabled"|"PrerenderFailedDuringPrefetch"|"BrowsingDataRemoved";
+    export type PrerenderFinalStatus = "Activated"|"Destroyed"|"LowEndDevice"|"InvalidSchemeRedirect"|"InvalidSchemeNavigation"|"NavigationRequestBlockedByCsp"|"MojoBinderPolicy"|"RendererProcessCrashed"|"RendererProcessKilled"|"Download"|"TriggerDestroyed"|"NavigationNotCommitted"|"NavigationBadHttpStatus"|"ClientCertRequested"|"NavigationRequestNetworkError"|"CancelAllHostsForTesting"|"DidFailLoad"|"Stop"|"SslCertificateError"|"LoginAuthRequested"|"UaChangeRequiresReload"|"BlockedByClient"|"AudioOutputDeviceRequested"|"MixedContent"|"TriggerBackgrounded"|"MemoryLimitExceeded"|"DataSaverEnabled"|"TriggerUrlHasEffectiveUrl"|"ActivatedBeforeStarted"|"InactivePageRestriction"|"StartFailed"|"TimeoutBackgrounded"|"CrossSiteRedirectInInitialNavigation"|"CrossSiteNavigationInInitialNavigation"|"SameSiteCrossOriginRedirectNotOptInInInitialNavigation"|"SameSiteCrossOriginNavigationNotOptInInInitialNavigation"|"ActivationNavigationParameterMismatch"|"ActivatedInBackground"|"EmbedderHostDisallowed"|"ActivationNavigationDestroyedBeforeSuccess"|"TabClosedByUserGesture"|"TabClosedWithoutUserGesture"|"PrimaryMainFrameRendererProcessCrashed"|"PrimaryMainFrameRendererProcessKilled"|"ActivationFramePolicyNotCompatible"|"PreloadingDisabled"|"BatterySaverEnabled"|"ActivatedDuringMainFrameNavigation"|"PreloadingUnsupportedByWebContents"|"CrossSiteRedirectInMainFrameNavigation"|"CrossSiteNavigationInMainFrameNavigation"|"SameSiteCrossOriginRedirectNotOptInInMainFrameNavigation"|"SameSiteCrossOriginNavigationNotOptInInMainFrameNavigation"|"MemoryPressureOnTrigger"|"MemoryPressureAfterTriggered"|"PrerenderingDisabledByDevTools"|"SpeculationRuleRemoved"|"ActivatedWithAuxiliaryBrowsingContexts"|"MaxNumOfRunningEagerPrerendersExceeded"|"MaxNumOfRunningNonEagerPrerendersExceeded"|"MaxNumOfRunningEmbedderPrerendersExceeded"|"PrerenderingUrlHasEffectiveUrl"|"RedirectedPrerenderingUrlHasEffectiveUrl"|"ActivationUrlHasEffectiveUrl"|"JavaScriptInterfaceAdded"|"JavaScriptInterfaceRemoved"|"AllPrerenderingCanceled"|"WindowClosed"|"SlowNetwork"|"OtherPrerenderedPageActivated"|"V8OptimizerDisabled"|"PrerenderFailedDuringPrefetch"|"BrowsingDataRemoved";
     /**
      * Preloading status values, see also PreloadingTriggeringOutcome. This
 status is shared by prefetchStatusUpdated and prerenderStatusUpdated.
@@ -18018,15 +18230,30 @@ https://web.dev/learn/pwa/web-app-manifest.
       fileHandlers: FileHandler[];
     }
     /**
-     * Installs the given manifest identity, optionally using the given install_url
-or IWA bundle location.
+     * Installs the given manifest identity, optionally using the given installUrlOrBundleUrl
 
-TODO(crbug.com/337872319) Support IWA to meet the following specific
-requirement.
-IWA-specific install description: If the manifest_id is isolated-app://,
-install_url_or_bundle_url is required, and can be either an http(s) URL or
-file:// URL pointing to a signed web bundle (.swbn). The .swbn file's
-signing key must correspond to manifest_id. If Chrome is not in IWA dev
+IWA-specific install description:
+manifestId corresponds to isolated-app:// + web_package::SignedWebBundleId
+
+File installation mode:
+The installUrlOrBundleUrl can be either file:// or http(s):// pointing
+to a signed web bundle (.swbn). In this case SignedWebBundleId must correspond to
+The .swbn file's signing key.
+
+Dev proxy installation mode:
+installUrlOrBundleUrl must be http(s):// that serves dev mode IWA.
+web_package::SignedWebBundleId must be of type dev proxy.
+
+The advantage of dev proxy mode is that all changes to IWA
+automatically will be reflected in the running app without
+reinstallation.
+
+To generate bundle id for proxy mode:
+1. Generate 32 random bytes.
+2. Add a specific suffix 0x00 at the end.
+3. Encode the entire sequence using Base32 without padding.
+
+If Chrome is not in IWA dev
 mode, the installation will fail, regardless of the state of the allowlist.
      */
     export type installParameters = {
@@ -18152,6 +18379,10 @@ the web-bluetooth API.
      */
     export type CharacteristicOperationType = "read"|"write"|"subscribe-to-notifications"|"unsubscribe-from-notifications";
     /**
+     * Indicates the various types of descriptor operation.
+     */
+    export type DescriptorOperationType = "read"|"write";
+    /**
      * Stores the manufacturer data
      */
     export interface ManufacturerData {
@@ -18227,6 +18458,16 @@ expected to exist when |type| is write.
       type: CharacteristicOperationType;
       data?: binary;
       writeType?: CharacteristicWriteType;
+    }
+    /**
+     * Event for when a descriptor operation of |type| to the descriptor
+respresented by |descriptorId| happened. |data| is expected to exist when
+|type| is write.
+     */
+    export type descriptorOperationReceivedPayload = {
+      descriptorId: string;
+      type: DescriptorOperationType;
+      data?: binary;
     }
     
     /**
@@ -18311,6 +18552,21 @@ response.
     export type simulateCharacteristicOperationResponseReturnValue = {
     }
     /**
+     * Simulates the response from the descriptor with |descriptorId| for a
+descriptor operation of |type|. The |code| value follows the Error
+Codes from Bluetooth Core Specification Vol 3 Part F 3.4.1.1 Error Response.
+The |data| is expected to exist when simulating a successful read operation
+response.
+     */
+    export type simulateDescriptorOperationResponseParameters = {
+      descriptorId: string;
+      type: DescriptorOperationType;
+      code: number;
+      data?: binary;
+    }
+    export type simulateDescriptorOperationResponseReturnValue = {
+    }
+    /**
      * Adds a service with |serviceUuid| to the peripheral with |address|.
      */
     export type addServiceParameters = {
@@ -18376,6 +18632,14 @@ by |characteristicId|.
       descriptorId: string;
     }
     export type removeDescriptorReturnValue = {
+    }
+    /**
+     * Simulates a GATT disconnection from the peripheral with |address|.
+     */
+    export type simulateGATTDisconnectionParameters = {
+      address: string;
+    }
+    export type simulateGATTDisconnectionReturnValue = {
     }
   }
   
@@ -21136,7 +21400,12 @@ Error was thrown.
     "Network.directTCPSocketClosed": Network.directTCPSocketClosedPayload;
     "Network.directTCPSocketChunkSent": Network.directTCPSocketChunkSentPayload;
     "Network.directTCPSocketChunkReceived": Network.directTCPSocketChunkReceivedPayload;
-    "Network.directTCPSocketChunkError": Network.directTCPSocketChunkErrorPayload;
+    "Network.directUDPSocketCreated": Network.directUDPSocketCreatedPayload;
+    "Network.directUDPSocketOpened": Network.directUDPSocketOpenedPayload;
+    "Network.directUDPSocketAborted": Network.directUDPSocketAbortedPayload;
+    "Network.directUDPSocketClosed": Network.directUDPSocketClosedPayload;
+    "Network.directUDPSocketChunkSent": Network.directUDPSocketChunkSentPayload;
+    "Network.directUDPSocketChunkReceived": Network.directUDPSocketChunkReceivedPayload;
     "Network.requestWillBeSentExtraInfo": Network.requestWillBeSentExtraInfoPayload;
     "Network.responseReceivedExtraInfo": Network.responseReceivedExtraInfoPayload;
     "Network.responseReceivedEarlyHints": Network.responseReceivedEarlyHintsPayload;
@@ -21197,10 +21466,13 @@ Error was thrown.
     "Storage.interestGroupAuctionEventOccurred": Storage.interestGroupAuctionEventOccurredPayload;
     "Storage.interestGroupAuctionNetworkRequestCreated": Storage.interestGroupAuctionNetworkRequestCreatedPayload;
     "Storage.sharedStorageAccessed": Storage.sharedStorageAccessedPayload;
+    "Storage.sharedStorageWorkletOperationExecutionFinished": Storage.sharedStorageWorkletOperationExecutionFinishedPayload;
     "Storage.storageBucketCreatedOrUpdated": Storage.storageBucketCreatedOrUpdatedPayload;
     "Storage.storageBucketDeleted": Storage.storageBucketDeletedPayload;
     "Storage.attributionReportingSourceRegistered": Storage.attributionReportingSourceRegisteredPayload;
     "Storage.attributionReportingTriggerRegistered": Storage.attributionReportingTriggerRegisteredPayload;
+    "Storage.attributionReportingReportSent": Storage.attributionReportingReportSentPayload;
+    "Storage.attributionReportingVerboseDebugReportSent": Storage.attributionReportingVerboseDebugReportSentPayload;
     "Target.attachedToTarget": Target.attachedToTargetPayload;
     "Target.detachedFromTarget": Target.detachedFromTargetPayload;
     "Target.receivedMessageFromTarget": Target.receivedMessageFromTargetPayload;
@@ -21247,6 +21519,7 @@ Error was thrown.
     "FedCm.dialogClosed": FedCm.dialogClosedPayload;
     "BluetoothEmulation.gattOperationReceived": BluetoothEmulation.gattOperationReceivedPayload;
     "BluetoothEmulation.characteristicOperationReceived": BluetoothEmulation.characteristicOperationReceivedPayload;
+    "BluetoothEmulation.descriptorOperationReceived": BluetoothEmulation.descriptorOperationReceivedPayload;
     "Console.messageAdded": Console.messageAddedPayload;
     "Debugger.breakpointResolved": Debugger.breakpointResolvedPayload;
     "Debugger.paused": Debugger.pausedPayload;
@@ -21470,12 +21743,14 @@ Error was thrown.
     "Emulation.setEmitTouchEventsForMouse": Emulation.setEmitTouchEventsForMouseParameters;
     "Emulation.setEmulatedMedia": Emulation.setEmulatedMediaParameters;
     "Emulation.setEmulatedVisionDeficiency": Emulation.setEmulatedVisionDeficiencyParameters;
+    "Emulation.setEmulatedOSTextScale": Emulation.setEmulatedOSTextScaleParameters;
     "Emulation.setGeolocationOverride": Emulation.setGeolocationOverrideParameters;
     "Emulation.getOverriddenSensorInformation": Emulation.getOverriddenSensorInformationParameters;
     "Emulation.setSensorOverrideEnabled": Emulation.setSensorOverrideEnabledParameters;
     "Emulation.setSensorOverrideReadings": Emulation.setSensorOverrideReadingsParameters;
     "Emulation.setPressureSourceOverrideEnabled": Emulation.setPressureSourceOverrideEnabledParameters;
     "Emulation.setPressureStateOverride": Emulation.setPressureStateOverrideParameters;
+    "Emulation.setPressureDataOverride": Emulation.setPressureDataOverrideParameters;
     "Emulation.setIdleOverride": Emulation.setIdleOverrideParameters;
     "Emulation.clearIdleOverride": Emulation.clearIdleOverrideParameters;
     "Emulation.setNavigatorOverrides": Emulation.setNavigatorOverridesParameters;
@@ -21627,7 +21902,7 @@ Error was thrown.
     "Page.getInstallabilityErrors": Page.getInstallabilityErrorsParameters;
     "Page.getManifestIcons": Page.getManifestIconsParameters;
     "Page.getAppId": Page.getAppIdParameters;
-    "Page.getAdScriptAncestryIds": Page.getAdScriptAncestryIdsParameters;
+    "Page.getAdScriptAncestry": Page.getAdScriptAncestryParameters;
     "Page.getFrameTree": Page.getFrameTreeParameters;
     "Page.getLayoutMetrics": Page.getLayoutMetricsParameters;
     "Page.getNavigationHistory": Page.getNavigationHistoryParameters;
@@ -21812,12 +22087,14 @@ Error was thrown.
     "BluetoothEmulation.simulateAdvertisement": BluetoothEmulation.simulateAdvertisementParameters;
     "BluetoothEmulation.simulateGATTOperationResponse": BluetoothEmulation.simulateGATTOperationResponseParameters;
     "BluetoothEmulation.simulateCharacteristicOperationResponse": BluetoothEmulation.simulateCharacteristicOperationResponseParameters;
+    "BluetoothEmulation.simulateDescriptorOperationResponse": BluetoothEmulation.simulateDescriptorOperationResponseParameters;
     "BluetoothEmulation.addService": BluetoothEmulation.addServiceParameters;
     "BluetoothEmulation.removeService": BluetoothEmulation.removeServiceParameters;
     "BluetoothEmulation.addCharacteristic": BluetoothEmulation.addCharacteristicParameters;
     "BluetoothEmulation.removeCharacteristic": BluetoothEmulation.removeCharacteristicParameters;
     "BluetoothEmulation.addDescriptor": BluetoothEmulation.addDescriptorParameters;
     "BluetoothEmulation.removeDescriptor": BluetoothEmulation.removeDescriptorParameters;
+    "BluetoothEmulation.simulateGATTDisconnection": BluetoothEmulation.simulateGATTDisconnectionParameters;
     "Console.clearMessages": Console.clearMessagesParameters;
     "Console.disable": Console.disableParameters;
     "Console.enable": Console.enableParameters;
@@ -22100,12 +22377,14 @@ Error was thrown.
     "Emulation.setEmitTouchEventsForMouse": Emulation.setEmitTouchEventsForMouseReturnValue;
     "Emulation.setEmulatedMedia": Emulation.setEmulatedMediaReturnValue;
     "Emulation.setEmulatedVisionDeficiency": Emulation.setEmulatedVisionDeficiencyReturnValue;
+    "Emulation.setEmulatedOSTextScale": Emulation.setEmulatedOSTextScaleReturnValue;
     "Emulation.setGeolocationOverride": Emulation.setGeolocationOverrideReturnValue;
     "Emulation.getOverriddenSensorInformation": Emulation.getOverriddenSensorInformationReturnValue;
     "Emulation.setSensorOverrideEnabled": Emulation.setSensorOverrideEnabledReturnValue;
     "Emulation.setSensorOverrideReadings": Emulation.setSensorOverrideReadingsReturnValue;
     "Emulation.setPressureSourceOverrideEnabled": Emulation.setPressureSourceOverrideEnabledReturnValue;
     "Emulation.setPressureStateOverride": Emulation.setPressureStateOverrideReturnValue;
+    "Emulation.setPressureDataOverride": Emulation.setPressureDataOverrideReturnValue;
     "Emulation.setIdleOverride": Emulation.setIdleOverrideReturnValue;
     "Emulation.clearIdleOverride": Emulation.clearIdleOverrideReturnValue;
     "Emulation.setNavigatorOverrides": Emulation.setNavigatorOverridesReturnValue;
@@ -22257,7 +22536,7 @@ Error was thrown.
     "Page.getInstallabilityErrors": Page.getInstallabilityErrorsReturnValue;
     "Page.getManifestIcons": Page.getManifestIconsReturnValue;
     "Page.getAppId": Page.getAppIdReturnValue;
-    "Page.getAdScriptAncestryIds": Page.getAdScriptAncestryIdsReturnValue;
+    "Page.getAdScriptAncestry": Page.getAdScriptAncestryReturnValue;
     "Page.getFrameTree": Page.getFrameTreeReturnValue;
     "Page.getLayoutMetrics": Page.getLayoutMetricsReturnValue;
     "Page.getNavigationHistory": Page.getNavigationHistoryReturnValue;
@@ -22442,12 +22721,14 @@ Error was thrown.
     "BluetoothEmulation.simulateAdvertisement": BluetoothEmulation.simulateAdvertisementReturnValue;
     "BluetoothEmulation.simulateGATTOperationResponse": BluetoothEmulation.simulateGATTOperationResponseReturnValue;
     "BluetoothEmulation.simulateCharacteristicOperationResponse": BluetoothEmulation.simulateCharacteristicOperationResponseReturnValue;
+    "BluetoothEmulation.simulateDescriptorOperationResponse": BluetoothEmulation.simulateDescriptorOperationResponseReturnValue;
     "BluetoothEmulation.addService": BluetoothEmulation.addServiceReturnValue;
     "BluetoothEmulation.removeService": BluetoothEmulation.removeServiceReturnValue;
     "BluetoothEmulation.addCharacteristic": BluetoothEmulation.addCharacteristicReturnValue;
     "BluetoothEmulation.removeCharacteristic": BluetoothEmulation.removeCharacteristicReturnValue;
     "BluetoothEmulation.addDescriptor": BluetoothEmulation.addDescriptorReturnValue;
     "BluetoothEmulation.removeDescriptor": BluetoothEmulation.removeDescriptorReturnValue;
+    "BluetoothEmulation.simulateGATTDisconnection": BluetoothEmulation.simulateGATTDisconnectionReturnValue;
     "Console.clearMessages": Console.clearMessagesReturnValue;
     "Console.disable": Console.disableReturnValue;
     "Console.enable": Console.enableReturnValue;

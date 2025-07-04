@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import type { Frame } from '../frames';
+import { renderTitleForCall } from '../../utils/isomorphic/protocolFormatter';
+import { monotonicTime, quoteCSSAttributeValue  } from '../../utils';
+import { raceAgainstDeadline } from '../../utils/isomorphic/timeoutRunner';
+import { Frame } from '../frames';
+
 import type { CallMetadata } from '../instrumentation';
 import type { Page } from '../page';
 import type * as actions from '@recorder/actions';
@@ -25,10 +29,7 @@ export function buildFullSelector(framePath: string[], selector: string) {
 }
 
 export function metadataToCallLog(metadata: CallMetadata, status: CallLogStatus): CallLog {
-  let title = metadata.apiName || metadata.method;
-  if (metadata.method === 'waitForEventInfo')
-    title += `(${metadata.params.info.event})`;
-  title = title.replace('object.expect', 'expect');
+  const title = renderTitleForCall(metadata);
   if (metadata.error)
     status = 'error';
   const params = {
@@ -43,7 +44,7 @@ export function metadataToCallLog(metadata: CallMetadata, status: CallLogStatus)
   const callLog: CallLog = {
     id: metadata.id,
     messages: metadata.log,
-    title,
+    title: title ?? '',
     status,
     error: metadata.error?.error?.message,
     params,
@@ -88,4 +89,40 @@ export function collapseActions(actions: actions.ActionInContext[]): actions.Act
     result[result.length - 1].startTime = startTime;
   }
   return result;
+}
+
+export async function generateFrameSelector(frame: Frame): Promise<string[]> {
+  const selectorPromises: Promise<string>[] = [];
+  while (frame) {
+    const parent = frame.parentFrame();
+    if (!parent)
+      break;
+    selectorPromises.push(generateFrameSelectorInParent(parent, frame));
+    frame = parent;
+  }
+  const result = await Promise.all(selectorPromises);
+  return result.reverse();
+}
+
+async function generateFrameSelectorInParent(parent: Frame, frame: Frame): Promise<string> {
+  const result = await raceAgainstDeadline(async () => {
+    try {
+      const frameElement = await frame.frameElement();
+      if (!frameElement || !parent)
+        return;
+      const utility = await parent._utilityContext();
+      const injected = await utility.injectedScript();
+      const selector = await injected.evaluate((injected, element) => {
+        return injected.generateSelectorSimple(element as Element);
+      }, frameElement);
+      return selector;
+    } catch (e) {
+    }
+  }, monotonicTime() + 2000);
+  if (!result.timedOut && result.result)
+    return result.result;
+
+  if (frame.name())
+    return `iframe[name=${quoteCSSAttributeValue(frame.name())}]`;
+  return `iframe[src=${quoteCSSAttributeValue(frame.url())}]`;
 }

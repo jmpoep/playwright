@@ -61,11 +61,6 @@ export class ElementHandle<T extends Node = Node> extends JSHandle<T> implements
     return Frame.fromNullable((await this._elementChannel.contentFrame()).frame);
   }
 
-  async _generateLocatorString(): Promise<string | null> {
-    const value = (await this._elementChannel.generateLocatorString()).value;
-    return value === undefined ? null : value;
-  }
-
   async getAttribute(name: string): Promise<string | null> {
     const value = (await this._elementChannel.getAttribute({ name })).value;
     return value === undefined ? null : value;
@@ -300,7 +295,7 @@ export async function convertInputFiles(platform: Platform, files: string | File
             lastModifiedMs
           };
         })),
-      }), true);
+      }), { internal: true });
       for (let i = 0; i < files.length; i++) {
         const writable = WritableStream.from(writableStreams[i]);
         await platform.streamFile(files[i], writable.stream());

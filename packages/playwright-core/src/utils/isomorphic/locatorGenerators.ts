@@ -37,12 +37,20 @@ export interface LocatorFactory {
   chainLocators(locators: string[]): string;
 }
 
-export function asLocatorDescription(selector: string): string | undefined {
-  const parsed = parseSelector(selector);
-  const describe = parsed.parts.findLast(part => part.name === 'internal:describe');
-  if (describe)
-    return JSON.parse(describe.body as string);
-  return undefined;
+export function asLocatorDescription(lang: Language, selector: string): string | undefined {
+  try {
+    const parsed = parseSelector(selector);
+    const lastPart = parsed.parts[parsed.parts.length - 1];
+    if (lastPart?.name === 'internal:describe') {
+      const description = JSON.parse(lastPart.body as string);
+      if (typeof description === 'string')
+        return description;
+    }
+    return innerAsLocators(new generators[lang](), parsed, false, 1)[0];
+  } catch (e) {
+    // Tolerate invalid input.
+    return selector;
+  }
 }
 
 export function asLocator(lang: Language, selector: string, isFrameLocator: boolean = false): string {
